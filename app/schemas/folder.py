@@ -49,7 +49,7 @@ class FolderCreate(BaseFolder):
 
 class FolderUpdate(BaseModel):
     """
-    FolderUpdate class contains the attributes that can be modified an updated. This class
+    FolderUpdate class contains the attributes that can be modified and updated. This class
     enforces updating certain attributes not all of them.
     """
 
