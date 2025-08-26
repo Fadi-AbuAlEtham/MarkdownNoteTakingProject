@@ -2,9 +2,9 @@ from typing import Optional, Annotated, List, Literal
 from datetime import datetime
 from pydantic import BaseModel, Field
 from pydantic.config import ConfigDict
-from pydantic.types import StringConstraints as S
+from pydantic.types import StringConstraints as StrConst
 
-Title = Annotated[str, S(min_length=1, max_length=120)]
+Title = Annotated[str, StrConst(min_length=1, max_length=120)]
 FolderStatus = Literal["active", "archived"]
 
 
@@ -26,6 +26,7 @@ class FolderUpdate(BaseModel):
     title: Optional[Title] = None
     status: Optional[FolderStatus] = None
     parent_id: Optional[int] = None
+    user_id: Optional[int] = None
 
 
 class FolderShort(BaseModel):
