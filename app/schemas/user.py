@@ -52,14 +52,37 @@ class UserBase(BaseModel):
     phone_number: Optional[Annotated[Phone, Field(description="Phone number")]] = None
 
     @field_validator("username", mode="before")
-    def norm_username(v: str) -> str:
-        # store canonical lowercase; display case can be handled separately if desired
+    def norm_username(v: Optional[str]) -> Optional[str]:
+        """
+        Normalize `username` **before** validation.
+
+        - Trims leading/trailing whitespace.
+        - Lowercases to enforce a canonical form.
+        - Passes through `None` or non-str values unchanged.
+
+        Args:
+            v: Raw username value.
+
+        Returns:
+            The normalized username, or `None`.
+        """
         return v.strip().lower() if isinstance(v, str) else v
 
     @field_validator("email", mode="before")
-    def norm_email(v: EmailStr) -> str:
-        # canonicalize to lowercase to avoid mixed-case duplicates
-        return str(v).strip().lower()
+    def norm_email(v: Optional[EmailStr]) -> Optional[str]:
+        """
+        Normalize `email` **before** validation.
+
+        - Converts to `str`, trims whitespace, and lowercases.
+        - Passes through `None` unchanged.
+
+        Args:
+            v: Raw email value.
+
+        Returns:
+            The normalized email string, or `None`.
+        """
+        return str(v).strip().lower() if v is not None else v
 
     @field_validator("dob")
     def dob_not_in_future(current_date: date) -> date:
