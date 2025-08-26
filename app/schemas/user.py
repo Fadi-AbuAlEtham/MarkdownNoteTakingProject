@@ -6,6 +6,7 @@ from pydantic import (
     EmailStr,
     field_validator,
     StringConstraints as StrConst,
+    model_validator,
 )
 from pydantic.config import ConfigDict
 
@@ -47,10 +48,18 @@ class UserBase(BaseModel):
 
     username: Annotated[Username, Field(description="This is the username.")]
     email: Annotated[EmailStr, Field(description="This is the user email.")]
-    dob: Annotated[date, Field(description="This is the date of birth.")]
-    phone_number: Optional[
-        Annotated[Phone, Field(description="This is the phone number")]
-    ] = None
+    dob: Optional[Annotated[date, Field(description="Date of birth")]] = None
+    phone_number: Optional[Annotated[Phone, Field(description="Phone number")]] = None
+
+    @field_validator("username", mode="before")
+    def norm_username(v: str) -> str:
+        # store canonical lowercase; display case can be handled separately if desired
+        return v.strip().lower() if isinstance(v, str) else v
+
+    @field_validator("email", mode="before")
+    def norm_email(v: EmailStr) -> str:
+        # canonicalize to lowercase to avoid mixed-case duplicates
+        return str(v).strip().lower()
 
     @field_validator("dob")
     def dob_not_in_future(current_date: date) -> date:
@@ -60,7 +69,6 @@ class UserBase(BaseModel):
         is today or earlier.
 
         Args:
-            cls: The model class (provided by Pydantic; unused).
             current_date: The candidate date value for `dob`.
 
         Returns:
@@ -99,6 +107,8 @@ class UserResponse(UserBase):
     model_config = ConfigDict(from_attributes=True)
     id: int
     created_at: datetime
+    updated_at: datetime
+    is_active: bool
 
 
 class UpdateUser(BaseModel):
@@ -114,3 +124,78 @@ class UpdateUser(BaseModel):
     password: Optional[Password] = None
     dob: Optional[date] = None
     phone_number: Optional[Phone] = None
+
+    @field_validator("username", mode="before")
+    def norm_username(v: Optional[str]) -> Optional[str]:
+        """
+        Normalize `username` **before** validation.
+
+        - Trims leading/trailing whitespace.
+        - Lowercases to enforce a canonical form.
+        - Passes through `None` or non-str values unchanged.
+
+        Args:
+            v: Raw username value.
+
+        Returns:
+            The normalized username, or `None`.
+        """
+        return v.strip().lower() if isinstance(v, str) else v
+
+    @field_validator("email", mode="before")
+    def norm_email(v: Optional[EmailStr]) -> Optional[str]:
+        """
+        Normalize `email` **before** validation.
+
+        - Converts to `str`, trims whitespace, and lowercases.
+        - Passes through `None` unchanged.
+
+        Args:
+            v: Raw email value.
+
+        Returns:
+            The normalized email string, or `None`.
+        """
+        return str(v).strip().lower() if v is not None else v
+
+    @field_validator("dob")
+    def dob_not_in_future(v: Optional[date]) -> Optional[date]:
+        """
+        Ensure `dob` is not a future date.
+
+        Accepts `None`. If a date is provided and it is later than today,
+        raises a `ValueError`.
+
+        Args:
+            v: Candidate date of birth.
+
+        Returns:
+            The same date value, if valid (or `None`).
+
+        Raises:
+            ValueError: If `v` is later than today's date.
+        """
+        if v is not None and v > date.today():
+            raise ValueError("dob cannot be in the future")
+        return v
+
+    @model_validator(mode="after")
+    def at_least_one_field(self):
+        """
+        Enforce that at least one updatable field is provided.
+
+        Checks `username`, `email`, `password`, `dob`, and `phone_number`.
+        If all are `None`, raises a `ValueError`.
+
+        Returns:
+            The validated model instance.
+
+        Raises:
+            ValueError: If no updatable fields are provided.
+        """
+        if not any(
+            getattr(self, f) is not None
+            for f in ("username", "email", "password", "dob", "phone_number")
+        ):
+            raise ValueError("At least one field must be provided for update")
+        return self

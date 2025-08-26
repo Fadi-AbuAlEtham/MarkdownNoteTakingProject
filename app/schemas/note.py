@@ -21,10 +21,12 @@ Notes:
   in the service layer before persisting.
 """
 
+
 class BaseNote(BaseModel):
     """
     BaseNote class acts as the parent class which contain all the general essential attributes.
     """
+
     model_config = ConfigDict(extra="forbid")
     title: Annotated[
         str,
@@ -47,6 +49,7 @@ class CreateNote(BaseNote):
     CreateNote class inherits the BaseNote class. It adds three more attributes which are
     required when creating a new note.
     """
+
     user_id: int = Field(description="Owner user ID (FK)")
     folder_id: Optional[int] = None
     tag_id: Optional[int] = None
@@ -57,6 +60,7 @@ class UpdateNote(BaseModel):
     UpdateNote class contains the attributes that can be modified and updated. This class
     enforces updating certain attributes not all of them.
     """
+
     model_config = ConfigDict(extra="forbid")
     user_id: Optional[int] = None
     folder_id: Optional[int] = None
@@ -81,6 +85,7 @@ class NoteResponse(BaseNote):
     NoteResponse class inherits the BaseNote class. It adds more attributes that should be
     displayed while returning the response of a certain request.
     """
+
     model_config = ConfigDict(from_attributes=True)
     id: int
     user_id: int

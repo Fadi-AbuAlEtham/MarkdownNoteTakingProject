@@ -16,10 +16,12 @@ Offsets:
 - Validate bounds in the service layer against the target content length.
 """
 
+
 class BaseIssue(BaseModel):
     """
     BaseIssue class acts as the parent class which contain the essential general attributes.
     """
+
     model_config = ConfigDict(extra="forbid")
     rule: Annotated[
         str,
@@ -41,6 +43,7 @@ class CreateIssue(BaseIssue):
     CreateIssue class inherits the BaseIssue class. It adds two specific attributes
     which are the note id and revision id which are required when creating a new issue.
     """
+
     note_id: int = Field(description="Note ID (FK)")
     revision_id: int = Field(description="Revision ID (FK)")
 
@@ -50,6 +53,7 @@ class UpdateIssue(BaseModel):
     UpdateIssue class contains the attributes that can be modified an updated. This class
     enforces updating certain attributes not all of them.
     """
+
     model_config = ConfigDict(extra="forbid")
     note_id: Optional[int] = None
     revision_id: Optional[int] = None
@@ -65,6 +69,7 @@ class ResponseIssue(BaseIssue):
     ResponseIssue class inherits the BaseIssue class. It adds more attributes that should be
     displayed while returning the response of a certain request.
     """
+
     model_config = ConfigDict(from_attributes=True)
     id: int
     note_id: int
