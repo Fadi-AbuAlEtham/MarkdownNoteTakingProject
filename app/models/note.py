@@ -10,7 +10,6 @@ from sqlalchemy import (
     func,
     text,
     Index,
-    Table,
 )
 from sqlalchemy.orm import relationship
 from app.core.db import Base

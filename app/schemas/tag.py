@@ -9,7 +9,7 @@ class BaseTag(BaseModel):
     model_config = ConfigDict(extra="forbid")
     title: Annotated[
         str,
-        StrConst(min_length=2, max_length=100),
+        StrConst(min_length=2, max_length=64),
         Field(description="This is the title."),
     ]
 
