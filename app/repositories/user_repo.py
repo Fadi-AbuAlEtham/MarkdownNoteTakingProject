@@ -103,13 +103,8 @@ async def user_exists_by_email(db: AsyncSession, email: EmailStr) -> bool:
     Returns:
         True if another active user exists with this email; otherwise False.
     """
-    email_norm = str(email).strip().lower()
-    stmt = select(
-        exists()
-        .where(
-            func.lower(models.User.email) == email_norm,
-        )
-        .where(models.User.deleted_at.is_(None))
+    stmt = select(exists().where(models.User.email == str(email))).where(
+        models.User.deleted_at.is_(None)
     )
     return await db.scalar(stmt)
 
@@ -126,12 +121,10 @@ async def user_exists_by_username(db: AsyncSession, username: str) -> bool:
     Returns:
         True if another active user exists with this username; otherwise False.
     """
-    uname_norm = username.strip().lower()
+    uname_norm = username.strip()
     stmt = select(
         exists()
-        .where(
-            func.lower(models.User.username) == uname_norm,
-        )
+        .where(models.User.username == uname_norm)
         .where(models.User.deleted_at.is_(None))
     )
     return await db.scalar(stmt)
@@ -167,10 +160,10 @@ async def update_user(db: AsyncSession, user_id: int, update_user: schemas.Updat
 
     # email
     if "email" in update_data:
-        new_email = str(update_data["email"]).strip().lower()
+        new_email = str(update_data["email"]).strip()
         stmt = select(
             exists()
-            .where(func.lower(models.User.email) == new_email)
+            .where(models.User.email == new_email)
             # Exclude the current user while updating to check other users
             .where(models.User.id != user_id)
             .where(models.User.deleted_at.is_(None))
@@ -181,7 +174,7 @@ async def update_user(db: AsyncSession, user_id: int, update_user: schemas.Updat
 
     # username
     if "username" in update_data:
-        new_username = update_data["username"].strip().lower()
+        new_username = update_data["username"].strip()
         stmt = select(
             exists()
             .where(func.lower(models.User.username) == new_username)
@@ -223,16 +216,15 @@ async def create_user(db: AsyncSession, user: schemas.CreateUser):
         ValueError: If "username" or "email" already exists among active users,
             or if a race triggers a uniqueness violation on commit.
     """
-    email_norm = str(user.email).strip().lower()
-    uname_norm = user.username.strip().lower()
+    uname_norm = user.username.strip()
 
     if await user_exists_by_username(db, uname_norm):
         raise ValueError("Username is already in use")
-    if await user_exists_by_email(db, email_norm):
+    if await user_exists_by_email(db, user.email):
         raise ValueError("Email is already in use")
 
     payload = user.model_dump()
-    payload["email"] = email_norm
+    payload["email"] = user.email
     payload["username"] = uname_norm
 
     db_user = models.User(**payload)

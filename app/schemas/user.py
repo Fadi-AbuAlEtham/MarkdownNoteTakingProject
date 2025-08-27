@@ -57,7 +57,6 @@ class UserBase(BaseModel):
         Normalize `username` **before** validation.
 
         - Trims leading/trailing whitespace.
-        - Lowercases to enforce a canonical form.
         - Passes through `None` or non-str values unchanged.
 
         Args:
@@ -66,14 +65,14 @@ class UserBase(BaseModel):
         Returns:
             The normalized username, or `None`.
         """
-        return v.strip().lower() if isinstance(v, str) else v
+        return v.strip() if isinstance(v, str) else v
 
     @field_validator("email", mode="before")
     def norm_email(v: Optional[EmailStr]) -> Optional[str]:
         """
         Normalize `email` **before** validation.
 
-        - Converts to `str`, trims whitespace, and lowercases.
+        - Converts to `str`, trims whitespace.
         - Passes through `None` unchanged.
 
         Args:
@@ -82,7 +81,7 @@ class UserBase(BaseModel):
         Returns:
             The normalized email string, or `None`.
         """
-        return str(v).strip().lower() if v is not None else v
+        return str(v).strip() if v is not None else v
 
     @field_validator("dob")
     def dob_not_in_future(current_date: date) -> date:
@@ -154,7 +153,6 @@ class UpdateUser(BaseModel):
         Normalize `username` **before** validation.
 
         - Trims leading/trailing whitespace.
-        - Lowercases to enforce a canonical form.
         - Passes through `None` or non-str values unchanged.
 
         Args:
@@ -163,14 +161,14 @@ class UpdateUser(BaseModel):
         Returns:
             The normalized username, or `None`.
         """
-        return v.strip().lower() if isinstance(v, str) else v
+        return v.strip() if isinstance(v, str) else v
 
     @field_validator("email", mode="before")
     def norm_email(v: Optional[EmailStr]) -> Optional[str]:
         """
         Normalize `email` **before** validation.
 
-        - Converts to `str`, trims whitespace, and lowercases.
+        - Converts to `str`, trims whitespace.
         - Passes through `None` unchanged.
 
         Args:
