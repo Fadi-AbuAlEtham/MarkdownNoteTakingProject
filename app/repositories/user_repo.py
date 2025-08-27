@@ -7,8 +7,46 @@ from sqlalchemy import select, exists, func
 from ..models import user as models
 from ..schemas import user as schemas
 
+"""
+Async User repository.
+
+This module provides CRUD and helper methods for the User entity using
+SQLAlchemy's async APIs. It implements:
+
+- Read helpers that, by default, return only active users;
+  (deleted_at IS NULL), in addition to others that include soft-deleted rows.
+- Existence checks for "email" and "username" that ignore soft-deleted users.
+- Update logic that:
+    - Applies partial updates from a Pydantic schema.
+    - Enforces case-insensitive uniqueness (excluding the current user).
+    - Normalizes "email"/"username" to lowercase for accepted storage.
+    - Relies on database UNIQUE indexes as the final arbiter (catches
+      "IntegrityError" on commit).
+- Create logic with pre-checks and "IntegrityError" handling.
+- Soft delete (sets "deleted_at" and "is_active=False") and restore helpers.
+
+Notes:
+    - The database schema uses partial UNIQUE indexes on "email"/"username"
+      that apply only when "deleted_at IS NULL", allowing reuse of identifiers
+      after a soft delete.
+    - Although PostgreSQL "CITEXT" provides case-insensitive comparisons,
+      inputs are still normalized to lowercase here for accepted storage and
+      consistency across non-DB consumers (logs, caches, etc.).
+"""
+
 
 async def get_user_by_id(db: AsyncSession, user_id: int):
+    """Fetch an active user by numeric ID.
+
+    Only returns a user whose deleted_at IS NULL (not soft deleted).
+
+    Args:
+        db: Async SQLAlchemy session.
+        user_id: Database primary key.
+
+    Returns:
+        The matching "User" instance, or "None" if not found or soft-deleted.
+    """
     stmt = (
         select(models.User)
         .where(models.User.id == user_id)
@@ -19,6 +57,16 @@ async def get_user_by_id(db: AsyncSession, user_id: int):
 
 
 async def get_all_users(db: AsyncSession, skip: int = 0, limit: int = 100):
+    """List active users with pagination.
+
+    Args:
+        db: Async SQLAlchemy session.
+        skip: Number of rows to skip (offset).
+        limit: Maximum number of rows to return.
+
+    Returns:
+        A list of "User" objects that are not soft-deleted.
+    """
     stmt = (
         select(models.User)
         .where(models.User.deleted_at.is_(None))
@@ -30,11 +78,31 @@ async def get_all_users(db: AsyncSession, skip: int = 0, limit: int = 100):
 
 
 async def get_user_by_id_including_deleted(db: AsyncSession, user_id: int):
+    """Fetch a user by ID, including soft-deleted rows.
+
+    Args:
+        db: Async SQLAlchemy session.
+        user_id: Database primary key.
+
+    Returns:
+        The matching "User" instance or "None" if not found.
+    """
     result = await db.execute(select(models.User).where(models.User.id == user_id))
     return result.scalar_one_or_none()
 
 
 async def user_exists_by_email(db: AsyncSession, email: EmailStr) -> bool:
+    """Check if an active user exists with the given email (case-insensitive --> CITEXT).
+
+    Soft-deleted users are ignored.
+
+    Args:
+        db: Async SQLAlchemy session.
+        email: Email to check.
+
+    Returns:
+        True if another active user exists with this email; otherwise False.
+    """
     email_norm = str(email).strip().lower()
     stmt = select(
         exists()
@@ -47,6 +115,17 @@ async def user_exists_by_email(db: AsyncSession, email: EmailStr) -> bool:
 
 
 async def user_exists_by_username(db: AsyncSession, username: str) -> bool:
+    """Check if an active user exists with the given username (case-insensitive).
+
+    Soft-deleted users are ignored.
+
+    Args:
+        db: Async SQLAlchemy session.
+        username: Username to check.
+
+    Returns:
+        True if another active user exists with this username; otherwise False.
+    """
     uname_norm = username.strip().lower()
     stmt = select(
         exists()
@@ -59,9 +138,30 @@ async def user_exists_by_username(db: AsyncSession, username: str) -> bool:
 
 
 async def update_user(db: AsyncSession, user_id: int, update_user: schemas.UpdateUser):
+    """Partially update an active user and return the updated row.
+
+    Applies only provided fields from the Pydantic schema. For "email" and
+    "username", values are normalized to lowercase and checked for conflicts
+    against other active users (excluding the current user). The database
+    remains the final arbiter of uniqueness; a race will be surfaced as an
+    "IntegrityError", which is caught and rethrown as a "ValueError".
+
+    Args:
+        db: Async SQLAlchemy session.
+        user_id: Target user's ID (must be active).
+        update_user: Partial update payload.
+
+    Returns:
+        The updated `User` instance, or `None` if the user doesn't exist or is
+        soft-deleted.
+
+    Raises:
+        ValueError: If the new email/username conflicts with another active user
+            or if the commit hits a uniqueness violation, or if the user doesn't exist.
+    """
     user = await get_user_by_id(db, user_id)
     if not user:
-        return None
+        raise ValueError(f"User with id: {user_id} doesn't exist!")
 
     update_data = update_user.model_dump(exclude_unset=True)
 
@@ -71,6 +171,7 @@ async def update_user(db: AsyncSession, user_id: int, update_user: schemas.Updat
         stmt = select(
             exists()
             .where(func.lower(models.User.email) == new_email)
+            # Exclude the current user while updating to check other users
             .where(models.User.id != user_id)
             .where(models.User.deleted_at.is_(None))
         )
@@ -84,6 +185,7 @@ async def update_user(db: AsyncSession, user_id: int, update_user: schemas.Updat
         stmt = select(
             exists()
             .where(func.lower(models.User.username) == new_username)
+            # Exclude the current user while updating to check other users
             .where(models.User.id != user_id)
             .where(models.User.deleted_at.is_(None))
         )
@@ -104,6 +206,23 @@ async def update_user(db: AsyncSession, user_id: int, update_user: schemas.Updat
 
 
 async def create_user(db: AsyncSession, user: schemas.CreateUser):
+    """Create a new user after validating uniqueness.
+
+    Normalizes "email" and "username" to lowercase, then pre-checks for active
+    duplicates. On commit, any race is handled by catching `IntegrityError` and
+    surfacing a friendly "ValueError".
+
+    Args:
+        db: Async SQLAlchemy session.
+        user: Pydantic payload containing user's fields.
+
+    Returns:
+        The newly created "User" instance.
+
+    Raises:
+        ValueError: If "username" or "email" already exists among active users,
+            or if a race triggers a uniqueness violation on commit.
+    """
     email_norm = str(user.email).strip().lower()
     uname_norm = user.username.strip().lower()
 
@@ -129,9 +248,24 @@ async def create_user(db: AsyncSession, user: schemas.CreateUser):
 
 
 async def soft_delete_user_by_id(db: AsyncSession, user_id: int):
+    """Soft-delete a user by setting "deleted_at" and "is_active=False".
+
+    If the user is already soft-deleted, this is a no-op and the user is
+    returned unchanged.
+
+    Args:
+        db: Async SQLAlchemy session.
+        user_id: Target user's ID.
+
+    Returns:
+        The updated "User" instance with "deleted_at" set.
+
+    Raises:
+        ValueError: If the user does not exist.
+    """
     user = await db.scalar(select(models.User).where(models.User.id == user_id))
     if not user:
-        raise ValueError("User doesn't exist!")
+        raise ValueError(f"User with id: {user_id} doesn't exist!")
     if user.deleted_at:
         return user
     user.deleted_at = datetime.now(timezone.utc)
@@ -142,9 +276,24 @@ async def soft_delete_user_by_id(db: AsyncSession, user_id: int):
 
 
 async def restore_user_by_id(db: AsyncSession, user_id: int):
+    """Restore a previously soft-deleted user.
+
+    Clears "deleted_at" and sets "is_active=True". If the user is not
+    soft-deleted, this is a no-op and the user is returned unchanged.
+
+    Args:
+        db: Async SQLAlchemy session.
+        user_id: Target user's ID.
+
+    Returns:
+        The restored "User" instance.
+
+    Raises:
+        ValueError: If the user does not exist.
+    """
     user = await db.scalar(select(models.User).where(models.User.id == user_id))
     if not user:
-        raise ValueError("User doesn't exist!")
+        raise ValueError(f"User with id: {user_id} doesn't exist!")
     if user.deleted_at is None:
         return user
     user.deleted_at = None
