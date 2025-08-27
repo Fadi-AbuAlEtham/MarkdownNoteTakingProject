@@ -130,7 +130,7 @@ async def user_exists_by_username(db: AsyncSession, username: str) -> bool:
     return await db.scalar(stmt)
 
 
-async def update_user(db: AsyncSession, user_id: int, update_user: schemas.UpdateUser):
+async def update_user(db: AsyncSession, user_id: int, updated_user: schemas.UpdateUser):
     """Partially update an active user and return the updated row.
 
     Applies only provided fields from the Pydantic schema. For "email" and
@@ -142,7 +142,7 @@ async def update_user(db: AsyncSession, user_id: int, update_user: schemas.Updat
     Args:
         db: Async SQLAlchemy session.
         user_id: Target user's ID (must be active).
-        update_user: Partial update payload.
+        updated_user: Partial update payload.
 
     Returns:
         The updated `User` instance, or `None` if the user doesn't exist or is
@@ -156,7 +156,7 @@ async def update_user(db: AsyncSession, user_id: int, update_user: schemas.Updat
     if not user:
         raise ValueError(f"User with id: {user_id} doesn't exist!")
 
-    update_data = update_user.model_dump(exclude_unset=True)
+    update_data = updated_user.model_dump(exclude_unset=True)
 
     # email
     if "email" in update_data:

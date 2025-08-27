@@ -1,6 +1,6 @@
 from typing import Optional, Annotated, List, Literal
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic.config import ConfigDict
 from pydantic.types import StringConstraints as StrConst
 
@@ -30,9 +30,29 @@ class BaseFolder(BaseModel):
     BaseFolder class acts as the parent class which contain the essential general attributes.
     """
 
-    model_config = ConfigDict(extra="forbid")
-    title: Annotated[Title, Field(description="This is the title.")]
-    status: Annotated[FolderStatus, Field(description="Folder status")] = "active"
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    title: Annotated[Title, Field(description="Folder title")]
+
+    @field_validator("title", mode="before")
+    def clean_title(v: str) -> str:
+        """
+        Normalize title **before** validation.
+
+        - Trims leading/trailing whitespace.
+        - Passes through `None` or non-str values unchanged.
+
+        Args:
+            v: Raw title value.
+
+        Returns:
+            The normalized title, or `None`.
+        """
+
+        s = v.strip() if isinstance(v, str) else v
+        if not s:
+            raise ValueError("title cannot be empty")
+        return s
 
 
 class FolderCreate(BaseFolder):
@@ -41,7 +61,6 @@ class FolderCreate(BaseFolder):
     user id and parent id. These attributes are essential for creating a new folder operation.
     """
 
-    user_id: int = Field(description="Owner user ID (FK)")
     parent_id: Optional[int] = Field(
         default=None, description="Parent folder ID (nullable)"
     )
@@ -53,11 +72,52 @@ class FolderUpdate(BaseModel):
     enforces updating certain attributes not all of them.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
     title: Optional[Title] = None
     status: Optional[FolderStatus] = None
     parent_id: Optional[int] = None
-    user_id: Optional[int] = None
+
+    @field_validator("title", mode="before")
+    def clean_title(v: Optional[str]) -> Optional[str]:
+        """
+        Normalize title **before** validation.
+
+        - Trims leading/trailing whitespace.
+        - Passes through `None` or non-str values unchanged.
+
+        Args:
+            v: Raw title value.
+
+        Returns:
+            The normalized title, or `None`.
+        """
+
+        if v is None:
+            return v
+        s = v.strip()
+        if not s:
+            raise ValueError("title cannot be empty")
+        return s
+
+    @model_validator(mode="after")
+    def at_least_one_field(self):
+        """
+        Enforce that at least one updatable field is provided.
+
+        Checks fields, if all are `None`, raises a `ValueError`.
+
+        Returns:
+            The validated model instance.
+
+        Raises:
+            ValueError: If no updatable fields are provided.
+        """
+        if not any(
+            getattr(self, f) is not None for f in ("title", "status", "parent_id")
+        ):
+            raise ValueError("At least one field must be provided for update")
+        return self
 
 
 class FolderShort(BaseModel):
@@ -78,9 +138,13 @@ class FolderResponse(BaseFolder):
     """
 
     model_config = ConfigDict(from_attributes=True)
+
     id: int
     user_id: int
     parent_id: Optional[int] = None
+    status: FolderStatus = "active"
     created_at: datetime
+    updated_at: datetime
+    is_active: bool
     parent: Optional[FolderShort] = None
     children: List[FolderShort] = Field(default_factory=list)
