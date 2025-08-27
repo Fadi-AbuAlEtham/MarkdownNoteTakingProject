@@ -123,7 +123,9 @@ async def get_folder_by_id_including_deleted(db: AsyncSession, folder_id: int):
     Returns:
         The matching "Folder" instance or "None" if not found.
     """
-    result = await db.execute(select(models.Folder).where(models.Folder.id == folder_id))
+    result = await db.execute(
+        select(models.Folder).where(models.Folder.id == folder_id)
+    )
     return result.scalar_one_or_none()
 
 

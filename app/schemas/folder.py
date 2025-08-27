@@ -35,7 +35,7 @@ class BaseFolder(BaseModel):
     title: Annotated[Title, Field(description="Folder title")]
 
     @field_validator("title", mode="before")
-    def clean_title(v: str) -> str:
+    def clean_title(cls, v: str) -> str:
         """
         Normalize title **before** validation.
 
@@ -49,7 +49,7 @@ class BaseFolder(BaseModel):
             The normalized title, or `None`.
         """
 
-        s = v.strip() if isinstance(v, str) else v
+        s = v.strip()
         if not s:
             raise ValueError("title cannot be empty")
         return s
@@ -79,7 +79,7 @@ class FolderUpdate(BaseModel):
     parent_id: Optional[int] = None
 
     @field_validator("title", mode="before")
-    def clean_title(v: Optional[str]) -> Optional[str]:
+    def clean_title(cls, v: Optional[str]) -> Optional[str]:
         """
         Normalize title **before** validation.
 
