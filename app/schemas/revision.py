@@ -1,6 +1,6 @@
 from typing import Optional, Annotated
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic.config import ConfigDict
 from pydantic.types import StringConstraints as StrConst
 
@@ -15,24 +15,33 @@ Notes:
 - Service layer should enforce that `version` increments per note and is immutable post-create.
 """
 
+Title = Annotated[str, StrConst(min_length=2, max_length=200)]
+Markdown = Annotated[str, StrConst(min_length=1)]
+
 
 class BaseRevision(BaseModel):
     """
     BaseRevision class acts as the parent class which contain the essential general attributes.
     """
 
-    model_config = ConfigDict(extra="forbid")
-    version: str = Field(description="This is the version")
-    title: Annotated[
-        str,
-        StrConst(min_length=2, max_length=100),
-        Field(description="This is the title."),
-    ]
-    content_md: Annotated[
-        str,
-        StrConst(min_length=3),
-        Field(description="This is the version's content modified"),
-    ]
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    version: int = Field(description="Monotonic version number (>= 1)")
+    title: Annotated[Title, Field(description="Revision title")]
+    content_md: Annotated[Markdown, Field(description="Markdown content")]
+
+    @field_validator("version")
+    def version_positive(cls, v: int) -> int:
+        if v < 1:
+            raise ValueError("version must be >= 1")
+        return v
+
+    @field_validator("title", mode="before")
+    def clean_title(cls, v: str) -> str:
+        s = v.strip()
+        if not s:
+            raise ValueError("title cannot be empty")
+        return s
 
 
 class CreateRevision(BaseRevision):
@@ -42,7 +51,6 @@ class CreateRevision(BaseRevision):
     """
 
     note_id: int = Field(description="Note ID (FK)")
-    created_by: int = Field(description="Owner user ID (FK)")
 
 
 class UpdateRevision(BaseModel):
@@ -51,17 +59,25 @@ class UpdateRevision(BaseModel):
     enforces updating certain attributes not all of them.
     """
 
-    model_config = ConfigDict(extra="forbid")
-    note_id: Optional[int] = None
-    created_by: Optional[int] = None
-    version: Optional[str] = None
-    title: Optional[Annotated[str, StrConst(min_length=2, max_length=100)]] = None
-    content_md: Optional[
-        Annotated[
-            str,
-            StrConst(min_length=3),
-        ]
-    ] = None
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    title: Optional[Title] = None
+    content_md: Optional[Markdown] = None
+
+    @field_validator("title", mode="before")
+    def clean_title(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        s = v.strip()
+        if not s:
+            raise ValueError("title cannot be empty")
+        return s
+
+    @model_validator(mode="after")
+    def at_least_one_field(self):
+        if self.title is None and self.content_md is None:
+            raise ValueError("At least one field must be provided for update")
+        return self
 
 
 class RevisionResponse(BaseRevision):
@@ -71,7 +87,10 @@ class RevisionResponse(BaseRevision):
     """
 
     model_config = ConfigDict(from_attributes=True)
+
     id: int
     note_id: int
-    created_by: int
+    user_id: int
     created_at: datetime
+    updated_at: datetime
+    is_active: bool
