@@ -32,12 +32,29 @@ class BaseRevision(BaseModel):
 
     @field_validator("version")
     def version_positive(cls, v: int) -> int:
+        """
+            Positive version number validation
+        :param v: Raw version number value.
+        :return: The validated version number.
+        """
         if v < 1:
             raise ValueError("version must be >= 1")
         return v
 
     @field_validator("title", mode="before")
     def clean_title(cls, v: str) -> str:
+        """
+        Normalize title **before** validation.
+
+        - Trims leading/trailing whitespace.
+        - Passes through `None` or non-str values unchanged.
+
+        Args:
+            v: Raw title value.
+
+        Returns:
+            The normalized title, or `None`.
+        """
         s = v.strip()
         if not s:
             raise ValueError("title cannot be empty")
@@ -66,6 +83,18 @@ class UpdateRevision(BaseModel):
 
     @field_validator("title", mode="before")
     def clean_title(cls, v: Optional[str]) -> Optional[str]:
+        """
+        Normalize title **before** validation.
+
+        - Trims leading/trailing whitespace.
+        - Passes through `None` or non-str values unchanged.
+
+        Args:
+            v: Raw title value.
+
+        Returns:
+            The normalized title, or `None`.
+        """
         if v is None:
             return v
         s = v.strip()
@@ -75,6 +104,17 @@ class UpdateRevision(BaseModel):
 
     @model_validator(mode="after")
     def at_least_one_field(self):
+        """
+        Enforce that at least one updatable field is provided.
+
+        Checks fields, if all are `None`, raises a `ValueError`.
+
+        Returns:
+            The validated model instance.
+
+        Raises:
+            ValueError: If no updatable fields are provided.
+        """
         if self.title is None and self.content_md is None:
             raise ValueError("At least one field must be provided for update")
         return self
