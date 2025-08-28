@@ -39,6 +39,25 @@ async def get_folder_by_id(db: AsyncSession, folder_id: int):
     return result.scalar_one_or_none()
 
 
+async def get_folder_by_id_and_user(db: AsyncSession, user_id: int, folder_id: int):
+    """
+        Fetch certain folder from its id for a certain user (only active folders; not soft-deleted)
+    :param
+        db: Async SQLAlchemy session.
+        folder_id: Database primary key.
+    :return:
+        The matching "Folder" instance, or "None" if not found or soft-deleted.
+    """
+    stmt = (
+        select(models.Folder)
+        .where(models.Folder.id == folder_id)
+        .where(models.Folder.deleted_at.is_(None))
+        .where(models.Folder.user_id == user_id)
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
+
 async def get_all_active_folders(db: AsyncSession, skip: int, limit: int):
     """
         Fetch all active folders.
@@ -193,7 +212,7 @@ async def update_folder(
             or if the commit hits a uniqueness violation, or if the folder doesn't exist.
     """
 
-    folder = get_folder_by_id(db, folder_id)
+    folder = get_folder_by_id_and_user(db, user_id, folder_id)
     if not folder:
         raise ValueError(f"Folder with id: {folder_id} doesn't exist!")
 
