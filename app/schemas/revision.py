@@ -63,8 +63,8 @@ class BaseRevision(BaseModel):
 
 class CreateRevision(BaseRevision):
     """
-    CreateRevision class inherits BaseRevision. It adds two more attributes: note id
-    and created by, which are required when creating a new revision.
+    CreateRevision class inherits BaseRevision. It adds one more attributes: note id,
+    which is required when creating a new revision.
     """
 
     note_id: int = Field(description="Note ID (FK)")
@@ -73,7 +73,7 @@ class CreateRevision(BaseRevision):
 class UpdateRevision(BaseModel):
     """
     UpdateRevision class contains the attributes that can be modified and updated. This class
-    enforces updating certain attributes not all of them.
+    enforces updating certain attributes, not all of them.
     """
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)

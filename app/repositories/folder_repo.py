@@ -307,7 +307,7 @@ async def soft_delete_folder_by_id(db: AsyncSession, user_id: int, folder_id: in
             f"Folder with id: {folder_id} doesn't exist or is already deleted"
         )
 
-    # Build recursive CTE of root + all descendants (active only)
+    # Build recursive CTE of root plus all descendants (active only)
     tree = (
         select(fd.id, fd.parent_id)
         .where(fd.id == folder_id, fd.user_id == user_id, fd.deleted_at.is_(None))

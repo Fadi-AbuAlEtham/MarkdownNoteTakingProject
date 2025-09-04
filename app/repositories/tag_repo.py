@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
 
-from lazy_object_proxy.utils import await_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, exists, func, update
@@ -14,7 +13,7 @@ async def get_all_tags(db: AsyncSession, skip: int, limit: int):
     """
         Fetch all active tags (not soft-deleted) with pagination
     :param db: Async SQLAlchemy session
-    :param skip: skip: Number of rows to skip (offset).
+    :param skip: Number of rows to skip (offset).
     :param limit: Maximum number of rows to return.
     :return: A list of tag objects that are not soft-deleted.
     """
