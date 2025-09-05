@@ -4,8 +4,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, exists, func, update
 
-from ..models import revision as models
-from ..models import note as models
+from ..models import revision as rev_models
+from ..models import note as note_models
 from ..schemas import revision as schemas
 
 
@@ -19,8 +19,8 @@ async def get_all_active_revisions(db: AsyncSession, skip: int = 0, limit: int =
     """
 
     stmt = (
-        select(models.NoteRevision)
-        .where(models.NoteRevision.deleted_at.is_(None))
+        select(rev_models.NoteRevision)
+        .where(rev_models.NoteRevision.deleted_at.is_(None))
         .offset(skip)
         .limit(limit)
     )
@@ -37,7 +37,7 @@ async def get_all_revisions(db: AsyncSession, skip: int = 0, limit: int = 100):
     :return: A list of all revision objects.
     """
 
-    stmt = select(models.NoteRevision).offset(skip).limit(limit)
+    stmt = select(rev_models.NoteRevision).offset(skip).limit(limit)
     result = await db.execute(stmt)
     return result.scalars().all()
 
@@ -51,9 +51,9 @@ async def get_revision_by_id(db: AsyncSession, revision_id: int):
     """
 
     stmt = (
-        select(models.NoteRevision)
-        .where(models.NoteRevision.id == revision_id)
-        .where(models.NoteRevision.deleted_at.is_(None))
+        select(rev_models.NoteRevision)
+        .where(rev_models.NoteRevision.id == revision_id)
+        .where(rev_models.NoteRevision.deleted_at.is_(None))
     )
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
@@ -69,10 +69,10 @@ async def get_revision_by_id_and_user(db: AsyncSession, revision_id: int, user_i
     """
 
     stmt = (
-        select(models.NoteRevision)
-        .where(models.NoteRevision.id == revision_id)
-        .where(models.NoteRevision.deleted_at.is_(None))
-        .where(models.NoteRevision.user_id == user_id)
+        select(rev_models.NoteRevision)
+        .where(rev_models.NoteRevision.id == revision_id)
+        .where(rev_models.NoteRevision.deleted_at.is_(None))
+        .where(rev_models.NoteRevision.user_id == user_id)
     )
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
@@ -91,11 +91,11 @@ async def get_revision_by_id_and_user_note(
     """
 
     stmt = (
-        select(models.NoteRevision)
-        .where(models.NoteRevision.id == revision_id)
-        .where(models.NoteRevision.deleted_at.is_(None))
-        .where(models.NoteRevision.user_id == user_id)
-        .where(models.NoteRevision.note_id == note_id)
+        select(rev_models.NoteRevision)
+        .where(rev_models.NoteRevision.id == revision_id)
+        .where(rev_models.NoteRevision.deleted_at.is_(None))
+        .where(rev_models.NoteRevision.user_id == user_id)
+        .where(rev_models.NoteRevision.note_id == note_id)
     )
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
@@ -115,10 +115,10 @@ async def check_revision_existence(
 
     stmt = select(
         exists()
-        .where(models.NoteRevision.user_id == user_id)
-        .where(models.NoteRevision.title == title.strip())
-        .where(models.NoteRevision.note_id == note_id)
-        .where(models.NoteRevision.deleted_at.is_(None))
+        .where(rev_models.NoteRevision.user_id == user_id)
+        .where(rev_models.NoteRevision.title == title.strip())
+        .where(rev_models.NoteRevision.note_id == note_id)
+        .where(rev_models.NoteRevision.deleted_at.is_(None))
     )
     return await db.scalar(stmt)
 
@@ -135,47 +135,51 @@ async def create_revision(
     :return: Revision object or None if not created
     """
 
-    note = await db.scalar(
-        select(models.Note).where(
-            models.Note.id == note_id,
-            models.Note.user_id == user_id,
-            models.Note.deleted_at.is_(None),
-        )
-    )
-    if note is None:
-        raise ValueError("Note not found or not accessible")
-
-    if await check_revision_existence(
-        db, user_id=user_id, note_id=note_id, title=revision.title
-    ):
-        raise ValueError(
-            f"A revision titled '{revision.title}' already exists for this note."
-        )
-
-    # ToDo: fix the version logic, note that the note has version attribute which can
-    #  be used to get the current version of the note then compute the next version from it
-    next_version = await db.scalar(
-        update(models.Note)
-        .where(models.Note.id == note_id)
-        .values(current_version=models.Note.current_version + 1)
-        .returning(models.Note.current_version)
-    )
-
-    payload = revision.model_dump(exclude={"version", "created_by"})
-    payload.update({"note_id": note_id, "user_id": user_id, "version": next_version})
-
-    db_rev = models.NoteRevision(**payload)
-    db.add(db_rev)
-
     try:
-        await db.commit()
-    except IntegrityError:
-        await db.rollback()
-        # Very rare with atomic counter; unique (note_id, version) is final safety net.
-        raise ValueError("Concurrent revision creation conflict; please retry.")
+        async with db.begin():
+            if await check_revision_existence(
+                db, user_id=user_id, title=revision.title, note_id=note_id
+            ):
+                raise ValueError(
+                    f"A revision titled '{revision.title}' already exists for this note."
+                )
 
-    await db.refresh(db_rev)
-    return db_rev
+            upd = (
+                update(note_models.Note)
+                .where(
+                    note_models.Note.id == note_id,
+                    note_models.Note.user_id == user_id,
+                    note_models.Note.deleted_at.is_(None),
+                )
+                .values(
+                    version=note_models.Note.version + 1,
+                    updated_at=func.now(),
+                )
+                .returning(note_models.Note.version)
+            )
+            res = await db.execute(upd)
+            row = res.first()
+            if not row:
+                raise ValueError("Note not found or not accessible")
+            new_version: int = int(row[0])
+
+            payload = revision.model_dump(exclude={"version", "created_by", "note_id"})
+            db_rev = rev_models.NoteRevision(
+                **payload,
+                note_id=note_id,
+                user_id=user_id,
+                version=new_version,
+            )
+            db.add(db_rev)
+
+        # committed successfully; refresh and return
+        await db.refresh(db_rev)
+        return db_rev
+
+    except IntegrityError as e:
+        # Extremely unlikely with the atomic counter, but keep a friendly error.
+        await db.rollback()
+        raise ValueError("Concurrent revision creation conflict; please retry.") from e
 
 
 async def update_revision(
@@ -206,12 +210,12 @@ async def update_revision(
     if "title" in data:
         stmt = select(
             exists()
-            .where(models.NoteRevision.title == updated_revision.title)
+            .where(rev_models.NoteRevision.title == updated_revision.title)
             # Exclude the current revision while updating to check other revisions
-            .where(models.NoteRevision.id != revision_id)
-            .where(models.NoteRevision.deleted_at.is_(None))
-            .where(models.NoteRevision.user_id == user_id)
-            .where(models.NoteRevision.note_id == note_id)
+            .where(rev_models.NoteRevision.id != revision_id)
+            .where(rev_models.NoteRevision.deleted_at.is_(None))
+            .where(rev_models.NoteRevision.user_id == user_id)
+            .where(rev_models.NoteRevision.note_id == note_id)
         )
         if await db.scalar(stmt):
             raise ValueError(f"This title: {updated_revision.title} is already in use")
@@ -240,7 +244,7 @@ async def soft_delete_by_id(db: AsyncSession, user_id: int, revision_id: int):
     :return: The updated revision instance with "deleted_at" and "is_active" attributes.
     """
 
-    revision = await get_revision_by_id_and_user(db, user_id, revision_id)
+    revision = await get_revision_by_id_and_user(db, revision_id, user_id)
     if revision is None:
         raise ValueError("This revision doesn't exist")
 
