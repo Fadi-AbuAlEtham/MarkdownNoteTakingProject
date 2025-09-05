@@ -75,3 +75,5 @@ class ResponseIssue(BaseIssue):
     note_id: int
     revision_id: int
     created_at: datetime
+    updated_at: datetime
+    deleted_at: Optional[datetime]
