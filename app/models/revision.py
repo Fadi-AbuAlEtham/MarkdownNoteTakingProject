@@ -10,6 +10,7 @@ from sqlalchemy import (
     UniqueConstraint,
     Index,
     Boolean,
+    text,
 )
 from sqlalchemy.dialects.postgresql import CITEXT
 from sqlalchemy.sql import func
@@ -60,7 +61,7 @@ class NoteRevision(Base):
         Index(
             "ix_note_revisions_note_active",
             "note_id",
-            postgresql_where=(deleted_at.is_(None)),
+            postgresql_where=text("deleted_at IS NULL"),
         ),
     )
 

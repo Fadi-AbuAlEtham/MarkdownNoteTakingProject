@@ -31,7 +31,7 @@ class BaseRevision(BaseModel):
     content_md: Annotated[Markdown, Field(description="Markdown content")]
 
     @field_validator("version")
-    def version_positive(cls, v: int) -> int:
+    def version_positive(self, v: int) -> int:
         """
             Positive version number validation
         :param v: Raw version number value.
@@ -42,7 +42,7 @@ class BaseRevision(BaseModel):
         return v
 
     @field_validator("title", mode="before")
-    def clean_title(cls, v: str) -> str:
+    def clean_title(self, v: str) -> str:
         """
         Normalize title **before** validation.
 
@@ -82,7 +82,7 @@ class UpdateRevision(BaseModel):
     content_md: Optional[Markdown] = None
 
     @field_validator("title", mode="before")
-    def clean_title(cls, v: Optional[str]) -> Optional[str]:
+    def clean_title(self, v: Optional[str]) -> Optional[str]:
         """
         Normalize title **before** validation.
 
