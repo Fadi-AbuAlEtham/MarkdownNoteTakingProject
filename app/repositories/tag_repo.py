@@ -83,7 +83,7 @@ async def create_tag(db: AsyncSession, user_id: int, tag: schemas.CreateTag):
          Create new tag with distinct title for a certain user.
     :param db: Async SQLAlchemy session
     :param user_id: Target User ID.
-    :param tag: Target tag ID.
+    :param tag: Pydantic payload containing tag fields.
     :return: The updated tag instance.
     """
 
