@@ -15,6 +15,7 @@ def to_response_dict(obj) -> dict:
         obj, from_attributes=True
     ).model_dump()
 
+
 async def get_user_by_id(db: AsyncSession, user_id: int):
     """
     Get user by id

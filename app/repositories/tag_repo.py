@@ -9,7 +9,7 @@ from ..models import tag as models
 from ..schemas import tag as schemas
 
 
-async def get_all_tags(db: AsyncSession, skip: int, limit: int):
+async def get_all_active_tags(db: AsyncSession, skip: int, limit: int):
     """
         Fetch all active tags (not soft-deleted) with pagination
     :param db: Async SQLAlchemy session
@@ -24,6 +24,20 @@ async def get_all_tags(db: AsyncSession, skip: int, limit: int):
         .offset(skip)
         .limit(limit)
     )
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
+async def get_all_tags(db: AsyncSession, skip: int, limit: int):
+    """
+        Fetch all tags with pagination
+    :param db: Async SQLAlchemy session
+    :param skip: Number of rows to skip (offset).
+    :param limit: Maximum number of rows to return.
+    :return: A list of tag objects.
+    """
+
+    stmt = select(models.Tag).offset(skip).limit(limit)
     result = await db.execute(stmt)
     return result.scalars().all()
 
@@ -48,6 +62,7 @@ async def get_tag_by_id_and_user(db: AsyncSession, user_id: int, tag_id: int):
     """
         Fetch a certain tag by its id (not soft-deleted)
     :param db: Async SQLAlchemy session
+    :param user_id: Target user ID
     :param tag_id: Target tag ID
     :return: The matching tag instance, or None if not found or soft-deleted.
     """
