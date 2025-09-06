@@ -106,11 +106,11 @@ async def create_tag(db: AsyncSession, user_id: int, tag: schemas.CreateTag):
         raise ValueError(f"This title: {tag.title} exists from before.")
 
     payload = tag.model_dump()
-
-    db_tag = models.Tag(**payload)
     payload["user_id"] = user_id
 
+    db_tag = models.Tag(**payload)
     db.add(db_tag)
+
     try:
         await db.commit()
     except IntegrityError:
