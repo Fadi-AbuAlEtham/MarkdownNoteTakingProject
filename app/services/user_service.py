@@ -1,4 +1,4 @@
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..schemas import user as schemas_user
@@ -38,8 +38,6 @@ async def get_all_active_users(db: AsyncSession, skip: int = 0, limit: int = 100
     :return: User list.
     """
     users = await user_repo.get_all_active_users(db, skip=skip, limit=limit)
-    if not users:
-        raise HTTPException(status_code=404, detail="No users found")
     return [to_response_dict(user) for user in users]
 
 
@@ -52,8 +50,6 @@ async def get_all_users(db: AsyncSession, skip: int = 0, limit: int = 100):
     :return: User list.
     """
     users = await user_repo.get_all_users(db, skip=skip, limit=limit)
-    if not users:
-        raise HTTPException(status_code=404, detail="No users found")
     return [to_response_dict(user) for user in users]
 
 
@@ -64,9 +60,10 @@ async def create_user(db: AsyncSession, payload: schemas_user.CreateUser):
     :param payload: Pydantic model that holds the new user payload.
     :return: User created object.
     """
-    user = await user_repo.create_user(db, payload)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    try:
+        user = await user_repo.create_user(db, payload)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     return to_response_dict(user)
 
 
@@ -78,9 +75,17 @@ async def update_user(db: AsyncSession, user_id: int, payload: schemas_user.Upda
     :param payload: Pydantic model that holds the new user payload.
     :return: User updated object.
     """
-    user = await user_repo.update_user(db, user_id, payload)
+    try:
+        user = await user_repo.update_user(db, user_id, payload)
+    except ValueError as e:
+        msg = str(e).lower()
+        if "exist" in msg or "already" in msg or "in use" in msg:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
     return to_response_dict(user)
 
 
@@ -91,7 +96,8 @@ async def soft_delete_user(db: AsyncSession, user_id: int):
     :param user_id: Target User id.
     :return: User deleted object.
     """
-    user = await user_repo.soft_delete_user_by_id(db, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    try:
+        user = await user_repo.soft_delete_user_by_id(db, user_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     return to_response_dict(user)
