@@ -148,7 +148,9 @@ async def get_all_active_issues_user(
     return res.scalars().all()
 
 
-async def create_issue(db: AsyncSession, user_id: int, issue_to_create: schemas.CreateIssue):
+async def create_issue(
+    db: AsyncSession, user_id: int, issue_to_create: schemas.CreateIssue
+):
     """
     Create a new issue, ensuring the user owns the parent note, and (if provided)
     the revision belongs to that note.
@@ -157,7 +159,9 @@ async def create_issue(db: AsyncSession, user_id: int, issue_to_create: schemas.
     :param issue_to_create: Pydantic model that holds the issue data.
     :return: The created issue.
     """
-    await ensure_note_owned_by_user(db, note_id=issue_to_create.note_id, user_id=user_id)
+    await ensure_note_owned_by_user(
+        db, note_id=issue_to_create.note_id, user_id=user_id
+    )
 
     if issue_to_create.revision_id is not None:
         await ensure_revision_belongs_to_note(

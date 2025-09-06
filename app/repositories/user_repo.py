@@ -56,7 +56,7 @@ async def get_user_by_id(db: AsyncSession, user_id: int):
     return result.scalar_one_or_none()
 
 
-async def get_all_users(db: AsyncSession, skip: int = 0, limit: int = 100):
+async def get_all_active_users(db: AsyncSession, skip: int = 0, limit: int = 100):
     """List active users with pagination.
 
     Args:
@@ -73,6 +73,22 @@ async def get_all_users(db: AsyncSession, skip: int = 0, limit: int = 100):
         .offset(skip)
         .limit(limit)
     )
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
+async def get_all_users(db: AsyncSession, skip: int = 0, limit: int = 100):
+    """List all users with pagination.
+
+    Args:
+        db: Async SQLAlchemy session.
+        skip: Number of rows to skip (offset).
+        limit: Maximum number of rows to return.
+
+    Returns:
+        A list of "User" objects.
+    """
+    stmt = select(models.User).offset(skip).limit(limit)
     result = await db.execute(stmt)
     return result.scalars().all()
 
