@@ -16,7 +16,7 @@ def to_response_dict(obj) -> dict:
     ).model_dump()
 
 
-async def get_folder_by_and_user(db:AsyncSession, user_id:int, folder_id: int):
+async def get_folder_by_and_user(db: AsyncSession, user_id: int, folder_id: int):
     """
     Get folder by and user
     :param db: Async SQLAlchemy session
@@ -30,7 +30,7 @@ async def get_folder_by_and_user(db:AsyncSession, user_id:int, folder_id: int):
     return to_response_dict(folder)
 
 
-async def get_all_active_folders(db:AsyncSession, skip: int = 0, limit: int = 100):
+async def get_all_active_folders(db: AsyncSession, skip: int = 0, limit: int = 100):
     """
     Get all active folders
     :param db: Async SQLAlchemy session
@@ -42,7 +42,9 @@ async def get_all_active_folders(db:AsyncSession, skip: int = 0, limit: int = 10
     return [to_response_dict(f) for f in folders]
 
 
-async def create_folder(db:AsyncSession, user_id: int, folder_to_create:schemas_issue.FolderCreate):
+async def create_folder(
+    db: AsyncSession, user_id: int, folder_to_create: schemas_issue.FolderCreate
+):
     """
     Create new folder
     :param db: Async SQLAlchemy session
@@ -57,7 +59,12 @@ async def create_folder(db:AsyncSession, user_id: int, folder_to_create:schemas_
     return to_response_dict(folder)
 
 
-async def update_folder(db: AsyncSession, user_id: int, folder_id: int, folder_to_update:schemas_issue.FolderUpdate):
+async def update_folder(
+    db: AsyncSession,
+    user_id: int,
+    folder_id: int,
+    folder_to_update: schemas_issue.FolderUpdate,
+):
     """
     Update folder
     :param db: Async SQLAlchemy session
@@ -67,7 +74,9 @@ async def update_folder(db: AsyncSession, user_id: int, folder_id: int, folder_t
     :return: Updated folder
     """
     try:
-        folder = await folder_repo.update_folder(db, user_id, folder_id, folder_to_update)
+        folder = await folder_repo.update_folder(
+            db, user_id, folder_id, folder_to_update
+        )
     except ValueError as e:
         msg = str(e).lower()
         if "exist" in msg or "duplicate" in msg or "already" in msg:
@@ -81,7 +90,7 @@ async def update_folder(db: AsyncSession, user_id: int, folder_id: int, folder_t
     return to_response_dict(folder)
 
 
-async def soft_delete_folder(db:AsyncSession, user_id: int, folder_id: int):
+async def soft_delete_folder(db: AsyncSession, user_id: int, folder_id: int):
     """
     Soft-delete folder
     :param db: Async SQLAlchemy session
@@ -90,7 +99,9 @@ async def soft_delete_folder(db:AsyncSession, user_id: int, folder_id: int):
     :return: Soft-deleted folder
     """
     try:
-        folder = await folder_repo.soft_delete_folder_by_id(db, user_id=user_id, folder_id=folder_id)
+        folder = await folder_repo.soft_delete_folder_by_id(
+            db, user_id=user_id, folder_id=folder_id
+        )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     return to_response_dict(folder)
