@@ -1,3 +1,4 @@
+import re
 from datetime import date, datetime
 from typing import Optional, Annotated
 from pydantic import (
@@ -30,13 +31,7 @@ Notes:
 # General constraints on username, phone, and password
 Username = Annotated[str, StrConst(min_length=3, max_length=32)]
 Phone = Annotated[str, StrConst(min_length=6, max_length=25)]
-Password = Annotated[
-    str,
-    StrConst(
-        min_length=8,
-        pattern=r"^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$",
-    ),
-]
+Password = Annotated[str, StrConst(min_length=8)]
 
 
 class UserBase(BaseModel):
@@ -81,7 +76,7 @@ class UserBase(BaseModel):
         Returns:
             The normalized email string, or `None`.
         """
-        return str(v).strip() if v is not None else v
+        return str(v).strip().lower() if v is not None else v
 
     @field_validator("dob")
     def dob_not_in_future(current_date: date) -> date:
@@ -112,12 +107,18 @@ class UserBase(BaseModel):
 class CreateUser(UserBase):
     """
     CreateUser class inherits the UserBase class and added extra attribute which is the
-    password which will be hashed later in the insert to DB operation. the purpose of this
-    class is to create new user with password which doesn't exist in the other classes.
+    password that will be hashed later in the insert to DB operation. the purpose of this
+    class is to create a new user with a password which doesn't exist in the other classes.
     """
 
     password: Annotated[Password, Field(description="Plain password, will be hashed.")]
 
+    @field_validator("password")
+    def strong_password(cls, v: str) -> str:
+        pattern = re.compile(r"^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$")
+        if not pattern.fullmatch(v):
+            raise ValueError("Password must be ≥8 chars, include a letter, a digit, and a special (@$!%*?&)")
+        return v
 
 class UserResponse(UserBase):
     """
@@ -136,7 +137,7 @@ class UserResponse(UserBase):
 class UpdateUser(BaseModel):
     """
     UpdateUser class contains the attributes that can be modified by the user. It's main purpose
-    is to enforce updating certain attributes not all of them.
+    is to enforce updating certain attributes, not all of them.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -184,7 +185,7 @@ class UpdateUser(BaseModel):
         """
         Ensure `dob` is not a future date.
 
-        Accepts `None`. If a date is provided and it is later than today,
+        Accepts `None`. If a date is provided, and it is later than today,
         raises a `ValueError`.
 
         Args:
@@ -220,3 +221,10 @@ class UpdateUser(BaseModel):
         ):
             raise ValueError("At least one field must be provided for update")
         return self
+
+    @field_validator("password")
+    def strong_password(cls, v: str) -> str:
+        pattern = re.compile(r"^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$")
+        if not pattern.fullmatch(v):
+            raise ValueError("Password must be ≥8 chars, include a letter, a digit, and a special (@$!%*?&)")
+        return v
