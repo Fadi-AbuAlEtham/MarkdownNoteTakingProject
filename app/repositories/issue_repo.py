@@ -183,7 +183,7 @@ async def create_issue(
 
 
 async def update_issue(
-    db: AsyncSession, user_id: int, issue_id: int, changes: schemas.UpdateIssue
+    db: AsyncSession, user_id: int, issue_id: int, issue_to_update: schemas.UpdateIssue
 ):
     """
     Update an existing issue. If moving it to a different note or revision,
@@ -191,12 +191,12 @@ async def update_issue(
     :param db: Async SQLAlchemy session.
     :param user_id: Target User ID.
     :param issue_id: Target Issue ID.
-    :param changes: Pydantic model that holds the issue data.
+    :param issue_to_update: Pydantic model that holds the issue data.
     :return: The updated issue.
     """
     issue = await load_issue_owned_by_user(db, issue_id=issue_id, user_id=user_id)
 
-    data = changes.model_dump(exclude_unset=True)
+    data = issue_to_update.model_dump(exclude_unset=True)
 
     target_note_id = data.get("note_id", issue.note_id)
     target_revision_id: Optional[int] = data.get("revision_id", issue.revision_id)
