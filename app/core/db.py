@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 
 Base = declarative_base()
 DATABASE_URL = "postgresql+asyncpg://postgres:root1234@localhost:5432/markdown_notes"
-engine = create_async_engine(DATABASE_URL, echo=True, future=True)
+engine = create_async_engine(DATABASE_URL, echo=True, future=True, pool_pre_ping=True)
 
 
 def get_async_engine(database_url: str, echo: bool = True):
