@@ -117,8 +117,11 @@ class CreateUser(UserBase):
     def strong_password(cls, v: str) -> str:
         pattern = re.compile(r"^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$")
         if not pattern.fullmatch(v):
-            raise ValueError("Password must be ≥8 chars, include a letter, a digit, and a special (@$!%*?&)")
+            raise ValueError(
+                "Password must be ≥8 chars, include a letter, a digit, and a special (@$!%*?&)"
+            )
         return v
+
 
 class UserResponse(UserBase):
     """
@@ -226,5 +229,7 @@ class UpdateUser(BaseModel):
     def strong_password(cls, v: str) -> str:
         pattern = re.compile(r"^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$")
         if not pattern.fullmatch(v):
-            raise ValueError("Password must be ≥8 chars, include a letter, a digit, and a special (@$!%*?&)")
+            raise ValueError(
+                "Password must be ≥8 chars, include a letter, a digit, and a special (@$!%*?&)"
+            )
         return v

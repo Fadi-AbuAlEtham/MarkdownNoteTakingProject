@@ -60,9 +60,7 @@ async def get_all_active_users(
 
 
 @router.post("/", response_model=user_schema.UserResponse, status_code=201)
-async def create_user(
-    user: user_schema.CreateUser, db: AsyncSession = Depends(get_db)
-):
+async def create_user(user: user_schema.CreateUser, db: AsyncSession = Depends(get_db)):
     """
     Create a new user.
     :param db: The database to use.
@@ -73,7 +71,11 @@ async def create_user(
 
 
 @router.put("/{user_id}", response_model=user_schema.UserResponse, status_code=200)
-async def update_user(user: user_schema.UpdateUser,user_id: Annotated[int, Path(title="The ID of the user to get", gt=0)]  ,db: AsyncSession = Depends(get_db)):
+async def update_user(
+    user: user_schema.UpdateUser,
+    user_id: Annotated[int, Path(title="The ID of the user to get", gt=0)],
+    db: AsyncSession = Depends(get_db),
+):
     """
     Update a user.
     :param db: The database to use.
@@ -85,7 +87,10 @@ async def update_user(user: user_schema.UpdateUser,user_id: Annotated[int, Path(
 
 
 @router.delete("/{user_id}", response_model=user_schema.UserResponse, status_code=200)
-async def soft_delete_user(user_id: Annotated[int, Path(title="The ID of the user to get", gt=0)], db: AsyncSession = Depends(get_db)):
+async def soft_delete_user(
+    user_id: Annotated[int, Path(title="The ID of the user to get", gt=0)],
+    db: AsyncSession = Depends(get_db),
+):
     """
     Soft-delete a user.
     :param db: The database to use.
