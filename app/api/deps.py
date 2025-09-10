@@ -1,6 +1,7 @@
 from typing import Annotated, Optional
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status, Security
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,26 +25,23 @@ def _extract_bearer_token(authorization: Optional[str]) -> str:
     return param
 
 
+security = HTTPBearer(auto_error=False)
+
+
 async def get_current_user(
-    authorization: Annotated[Optional[str], Header(None, alias="Authorization")],
-    db: Annotated[AsyncSession, Depends(get_db)],
+    creds: HTTPAuthorizationCredentials = Security(security),
+    db: AsyncSession = Depends(get_db),
 ) -> models.User:
-    """
-    - Reads Authorization header (Bearer token)
-    - Decodes JWT and gets user id from `sub`
-    - Loads user; rejects soft-deleted or inactive
-    """
-    token = _extract_bearer_token(authorization)
+    if not creds or creds.scheme.lower() != "bearer":
+        raise unauth_exc
+    token = creds.credentials
     try:
         payload = decode_access_token(token)
-        sub = payload.get("sub")
-        user_id = int(sub)
+        user_id = int(payload.get("sub"))
     except (JWTError, ValueError, TypeError):
         raise unauth_exc
 
-    user = await user_repo.get_user_by_id(
-        db, user_id
-    )  # your repo excludes soft-deleted
+    user = await user_repo.get_user_by_id(db, user_id)
     if not user:
         raise unauth_exc
     if getattr(user, "is_active", True) is False:
@@ -57,7 +55,6 @@ async def get_current_user_id(
     return user.id
 
 
-# Optional authorization helper
 async def allow_self_or_admin(
     target_user_id: int,
     user: Annotated[models.User, Depends(get_current_user)],

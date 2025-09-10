@@ -3,7 +3,7 @@ from typing import Any, Dict, Optional
 
 from jose import jwt
 
-SECRET_KEY = "CHANGE_ME_SUPER_SECRET"
+SECRET_KEY = "EXALT_SUMMER_TRAINING"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
