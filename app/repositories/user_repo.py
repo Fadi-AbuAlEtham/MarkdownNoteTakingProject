@@ -3,7 +3,9 @@ from datetime import datetime, timezone
 from pydantic import EmailStr
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, exists, func
+from sqlalchemy import select, exists
+
+from ..core.security import hash_password
 from ..models import user as models
 from ..schemas import user as schemas
 
@@ -119,9 +121,8 @@ async def user_exists_by_email(db: AsyncSession, email: EmailStr) -> bool:
     Returns:
         True if another active user exists with this email; otherwise False.
     """
-    stmt = select(exists().where(models.User.email == str(email))).where(
-        models.User.deleted_at.is_(None)
-    )
+    stmt = select(exists().where(models.User.email == str(email)).where(
+        models.User.deleted_at.is_(None)))
     return await db.scalar(stmt)
 
 
@@ -174,13 +175,11 @@ async def update_user(db: AsyncSession, user_id: int, updated_user: schemas.Upda
 
     update_data = updated_user.model_dump(exclude_unset=True)
 
-    # email
     if "email" in update_data:
-        new_email = str(update_data["email"]).strip()
+        new_email = str(update_data.pop("email")).strip().lower()
         stmt = select(
             exists()
             .where(models.User.email == new_email)
-            # Exclude the current user while updating to check other users
             .where(models.User.id != user_id)
             .where(models.User.deleted_at.is_(None))
         )
@@ -190,17 +189,19 @@ async def update_user(db: AsyncSession, user_id: int, updated_user: schemas.Upda
 
     # username
     if "username" in update_data:
-        new_username = update_data["username"].strip()
+        new_username = update_data.pop("username").strip()
         stmt = select(
             exists()
-            .where(func.lower(models.User.username) == new_username)
-            # Exclude the current user while updating to check other users
+            .where(models.User.username == new_username)
             .where(models.User.id != user_id)
             .where(models.User.deleted_at.is_(None))
         )
         if await db.scalar(stmt):
             raise ValueError("Username is already in use")
         update_data["username"] = new_username
+
+    if "password" in update_data:
+        user.password_hash = hash_password(update_data.pop("password"))
 
     for k, v in update_data.items():
         setattr(user, k, v)
@@ -233,15 +234,21 @@ async def create_user(db: AsyncSession, user: schemas.CreateUser):
             or if a race triggers a uniqueness violation on commit.
     """
     uname_norm = user.username.strip()
+    email_norm = str(user.email).strip().lower()
 
     if await user_exists_by_username(db, uname_norm):
         raise ValueError("Username is already in use")
     if await user_exists_by_email(db, user.email):
         raise ValueError("Email is already in use")
 
-    payload = user.model_dump()
-    payload["email"] = user.email
-    payload["username"] = uname_norm
+    payload = user.model_dump(exclude={"password"})
+    payload.update(
+        {
+            "username": uname_norm,
+            "email": email_norm,
+            "password_hash": hash_password(user.password),
+        }
+    )
 
     db_user = models.User(**payload)
     db.add(db_user)
