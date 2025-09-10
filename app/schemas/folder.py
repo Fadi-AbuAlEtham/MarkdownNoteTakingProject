@@ -62,8 +62,12 @@ class FolderCreate(BaseFolder):
     """
 
     parent_id: Optional[int] = Field(
-        default=None, description="Parent folder ID (nullable)"
+        default=None, ge=0, description="Parent folder ID; use 0 for root"
     )
+
+    @field_validator("parent_id", mode="before")
+    def zero_means_root(cls, v):
+        return None if v in (0, "0", 0.0) else v
 
 
 class FolderUpdate(BaseModel):
@@ -76,7 +80,9 @@ class FolderUpdate(BaseModel):
 
     title: Optional[Title] = None
     status: Optional[FolderStatus] = None
-    parent_id: Optional[int] = None
+    parent_id: Optional[int] = Field(
+        default=None, ge=0, description="Parent folder ID; use 0 for root"
+    )
 
     @field_validator("title", mode="before")
     def clean_title(cls, v: Optional[str]) -> Optional[str]:
@@ -99,6 +105,10 @@ class FolderUpdate(BaseModel):
         if not s:
             raise ValueError("title cannot be empty")
         return s
+
+    @field_validator("parent_id", mode="before")
+    def zero_means_root(cls, v):
+        return None if v in (0, "0", 0.0) else v
 
     @model_validator(mode="after")
     def at_least_one_field(self):

@@ -9,7 +9,7 @@ from sqlalchemy import (
     Index,
 )
 from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 from sqlalchemy.dialects.postgresql import CITEXT
 from app.core.db import Base
 
@@ -42,9 +42,15 @@ class Folder(Base):
     )
     deleted_at = Column(DateTime(timezone=True), nullable=True)
 
-    user = relationship("User", back_populates="folders")
-    parent = relationship("Folder", remote_side=[id], back_populates="children")
-    children = relationship("Folder", back_populates="parent")
+    user = relationship(
+        "User",
+        backref=backref("folders", cascade="all, delete-orphan", lazy="raise"),
+        lazy="raise",
+    )
+    parent = relationship(
+        "Folder", remote_side=[id], back_populates="children", lazy="raise"
+    )
+    children = relationship("Folder", back_populates="parent", lazy="raise")
 
     __table_args__ = (
         # Unique per user + parent + title, only for active (not soft-deleted) folders
