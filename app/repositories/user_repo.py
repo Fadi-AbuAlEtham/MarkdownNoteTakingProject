@@ -58,6 +58,25 @@ async def get_user_by_id(db: AsyncSession, user_id: int):
     return result.scalar_one_or_none()
 
 
+async def get_user_by_username(db: AsyncSession, username: str):
+    """
+    Get an active user by username.
+    Only returns a user whose deleted_at IS NULL (not soft-deleted).
+    Args:
+        db: Async SQLAlchemy session.
+        username: Database primary key.
+
+    Returns:
+        The matching "User" instance, or "None" if not found or soft-deleted.
+    """
+    stmt = (
+        select(models.User)
+        .where(models.User.username == username.strip())
+        .where(models.User.deleted_at.is_(None))
+    )
+    return (await db.execute(stmt)).scalar_one_or_none()
+
+
 async def get_all_active_users(db: AsyncSession, skip: int = 0, limit: int = 100):
     """List active users with pagination.
 
@@ -121,8 +140,11 @@ async def user_exists_by_email(db: AsyncSession, email: EmailStr) -> bool:
     Returns:
         True if another active user exists with this email; otherwise False.
     """
-    stmt = select(exists().where(models.User.email == str(email)).where(
-        models.User.deleted_at.is_(None)))
+    stmt = select(
+        exists()
+        .where(models.User.email == str(email))
+        .where(models.User.deleted_at.is_(None))
+    )
     return await db.scalar(stmt)
 
 

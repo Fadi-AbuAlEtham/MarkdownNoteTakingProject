@@ -4,17 +4,12 @@ from fastapi import APIRouter, Depends
 from fastapi.params import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.db import SessionLocal
+from app.core.db import get_db
 from app.schemas import user as user_schema
 from app.services import user_service
 
 
 router = APIRouter(prefix="/users", tags=["user"])
-
-
-async def get_db():
-    async with SessionLocal() as session:
-        yield session
 
 
 @router.get("/{user_id}", response_model=user_schema.UserResponse, status_code=200)
