@@ -30,15 +30,16 @@ async def get_tag_by_id_and_user(db: AsyncSession, user_id: int, tag_id: int):
     return to_response_dict(tag)
 
 
-async def get_all_active_tags(db: AsyncSession, skip: int = 0, limit: int = 100):
+async def get_all_active_tags(db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100):
     """
     Get all active tags.
+    :param user_id: target user_id
     :param db: Async SQLAlchemy session.
     :param skip: Number of rows to skip (offset).
     :param limit: Maximum number of rows to return.
     :return: All active tags.
     """
-    tags = await tag_repo.get_all_active_tags(db, skip=skip, limit=limit)
+    tags = await tag_repo.get_all_active_tags(db, user_id, skip=skip, limit=limit)
     return [to_response_dict(t) for t in tags]
 
 

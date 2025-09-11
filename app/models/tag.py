@@ -9,7 +9,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import CITEXT
 from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 from app.core.db import Base
 
 
@@ -40,7 +40,9 @@ class Tag(Base):
     )
     deleted_at = Column(DateTime(timezone=True), nullable=True)
 
-    user = relationship("User", back_populates="tags", lazy="selectin")
+    user = relationship(
+        "User", backref=backref("tags", cascade="all, delete-orphan", lazy="selectin")
+    )
 
     __table_args__ = (
         # Unique per user among *active* (not soft-deleted) tags

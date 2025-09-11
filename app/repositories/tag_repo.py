@@ -9,9 +9,10 @@ from ..models import tag as models
 from ..schemas import tag as schemas
 
 
-async def get_all_active_tags(db: AsyncSession, skip: int, limit: int):
+async def get_all_active_tags(db: AsyncSession, user_id: int, skip: int, limit: int):
     """
         Fetch all active tags (not soft-deleted) with pagination
+    :param user_id: Target user_id
     :param db: Async SQLAlchemy session
     :param skip: Number of rows to skip (offset).
     :param limit: Maximum number of rows to return.
@@ -21,6 +22,7 @@ async def get_all_active_tags(db: AsyncSession, skip: int, limit: int):
     stmt = (
         select(models.Tag)
         .where(models.Tag.deleted_at.is_(None))
+        .where(models.Tag.user_id == user_id)
         .offset(skip)
         .limit(limit)
     )
