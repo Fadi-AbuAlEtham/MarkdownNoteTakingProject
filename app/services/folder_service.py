@@ -30,15 +30,20 @@ async def get_folder_by_and_user(db: AsyncSession, user_id: int, folder_id: int)
     return to_response_dict(folder)
 
 
-async def get_all_active_folders(db: AsyncSession, skip: int = 0, limit: int = 100):
+async def get_all_active_folders(
+    db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100
+):
     """
     Get all active folders
     :param db: Async SQLAlchemy session
+    :param user_id: Target user_id
     :param skip: Number of items to skip
     :param limit: Number of items to return
     :return: List of all active folders
     """
-    folders = await folder_repo.get_all_active_folders(db, skip=skip, limit=limit)
+    folders = await folder_repo.get_all_active_folders(
+        db, user_id=user_id, skip=skip, limit=limit
+    )
     return [to_response_dict(f) for f in folders]
 
 

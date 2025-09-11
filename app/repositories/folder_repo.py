@@ -73,7 +73,7 @@ async def get_folder_by_id_and_user(db: AsyncSession, user_id: int, folder_id: i
     return result.scalar_one_or_none()
 
 
-async def get_all_active_folders(db: AsyncSession, skip: int, limit: int):
+async def get_all_active_folders(db: AsyncSession, user_id: int, skip: int, limit: int):
     """
         Fetch all active folders.
     :param
@@ -87,10 +87,11 @@ async def get_all_active_folders(db: AsyncSession, skip: int, limit: int):
     stmt = (
         select(models.Folder)
         .where(models.Folder.deleted_at.is_(None))
+        .where(models.Folder.user_id == user_id)
         .offset(skip)
         .limit(limit)
     )
-    result = await db.execute(stmt)
+    result = await db.execute(_with_folder_graph(stmt))
     return result.scalars().all()
 
 

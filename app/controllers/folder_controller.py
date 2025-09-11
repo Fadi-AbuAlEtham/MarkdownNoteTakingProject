@@ -40,16 +40,20 @@ async def get_folder_by_id(
     status_code=status.HTTP_200_OK,
 )
 async def get_all_active_folders(
+    skip: int = 0,
+    limit: int = 100,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id),
 ):
     """
     Get all active folders.
+    :param skip: Starting offset
+    :param limit: End offset
     :param db: Async SQLAlchemy session
     :param current_user_id: User ID
     :return: List of all active folders for the current user
     """
-    return await folder_service.get_all_active_folders(db, current_user_id)
+    return await folder_service.get_all_active_folders(db, current_user_id, skip, limit)
 
 
 @router.post(
