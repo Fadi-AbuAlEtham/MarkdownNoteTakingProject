@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, exists, func, update
-from sqlalchemy.orm import aliased
+from sqlalchemy.orm import aliased, selectinload, load_only
 
 from ..models import folder as models
 from ..schemas import folder as schemas
@@ -20,6 +20,16 @@ Async folder repository.
 - Prefer CITEXT for case-insensitive title equality without LOWER().
 """
 
+def _with_folder_graph(stmt):
+    """
+    Ensure relationships needed by FolderResponse are loaded to avoid
+    lazy I/O during Pydantic serialization.
+    """
+    return stmt.options(
+        selectinload(models.Folder.parent).load_only(models.Folder.id, models.Folder.title),
+        selectinload(models.Folder.children).load_only(models.Folder.id, models.Folder.title),
+    )
+
 
 async def get_folder_by_id(db: AsyncSession, folder_id: int):
     """
@@ -35,7 +45,7 @@ async def get_folder_by_id(db: AsyncSession, folder_id: int):
         .where(models.Folder.id == folder_id)
         .where(models.Folder.deleted_at.is_(None))
     )
-    result = await db.execute(stmt)
+    result = await db.execute(_with_folder_graph(stmt))
     return result.scalar_one_or_none()
 
 
@@ -54,7 +64,7 @@ async def get_folder_by_id_and_user(db: AsyncSession, user_id: int, folder_id: i
         .where(models.Folder.deleted_at.is_(None))
         .where(models.Folder.user_id == user_id)
     )
-    result = await db.execute(stmt)
+    result = await db.execute(_with_folder_graph(stmt))
     return result.scalar_one_or_none()
 
 
@@ -163,9 +173,8 @@ async def create_folder(db: AsyncSession, user_id: int, folder: schemas.FolderCr
         ValueError: If title already exists for the same user.
     """
     title = folder.title.strip()
-    parent_id = folder.parent_id
+    parent_id = folder.parent_id  # already None if client sent 0 (your schema)
 
-    # validate that parent_id belongs to the same user (and is active), if provided
     if parent_id is not None:
         parent = await db.scalar(
             select(models.Folder).where(
@@ -190,10 +199,12 @@ async def create_folder(db: AsyncSession, user_id: int, folder: schemas.FolderCr
         await db.commit()
     except IntegrityError:
         await db.rollback()
-        # Catches races that slipped past the pre-check
         raise ValueError(f"A folder named '{title}' already exists at this level.")
-    await db.refresh(db_folder)
-    return db_folder
+
+    result = await db.execute(
+        _with_folder_graph(select(models.Folder).where(models.Folder.id == db_folder.id))
+    )
+    return result.scalar_one()
 
 
 async def update_folder(
@@ -212,15 +223,13 @@ async def update_folder(
             or if the commit hits a uniqueness violation, or if the folder doesn't exist.
     """
 
-    folder = get_folder_by_id_and_user(db, user_id, folder_id)
+    folder = await get_folder_by_id_and_user(db, user_id, folder_id)
     if not folder:
         raise ValueError(f"Folder with id: {folder_id} doesn't exist!")
 
     data = updated_folder.model_dump(exclude_unset=True)
-
     target_parent_id = data.get("parent_id", folder.parent_id)
 
-    # Parent
     if target_parent_id is not None:
         if target_parent_id == folder_id:
             raise ValueError("A folder cannot be its own parent")
@@ -234,37 +243,30 @@ async def update_folder(
         if not parent:
             raise ValueError("Parent folder not found or not accessible")
 
-    # Determine the title to check (new or current), trim edges
     target_title = data.get("title", folder.title)
     if isinstance(target_title, str):
         target_title = target_title.strip()
 
-    # Uniqueness pre-check: same user, same parent level, different id, active only
     conditions = [
         models.Folder.user_id == user_id,
         models.Folder.deleted_at.is_(None),
         models.Folder.id != folder_id,
         models.Folder.title == target_title,
     ]
-
     if target_parent_id is None:
         conditions.append(models.Folder.parent_id.is_(None))
     else:
         conditions.append(models.Folder.parent_id == target_parent_id)
 
     if await db.scalar(select(exists().where(*conditions))):
-        raise ValueError(
-            f"A folder named '{target_title}' already exists at this level"
-        )
+        raise ValueError(f"A folder named '{target_title}' already exists at this level")
 
-    # Apply the mutation
     if "title" in data:
         folder.title = target_title
         del data["title"]
     if "parent_id" in data:
         folder.parent_id = target_parent_id
         del data["parent_id"]
-
     for key, value in data.items():
         setattr(folder, key, value)
 
@@ -272,13 +274,12 @@ async def update_folder(
         await db.commit()
     except IntegrityError:
         await db.rollback()
-        # DB-level partial UNIQUE index is the final arbiter; translate race to a friendly message
-        raise ValueError(
-            f"A folder named '{target_title}' already exists at this level"
-        )
+        raise ValueError(f"A folder named '{target_title}' already exists at this level")
 
-    await db.refresh(folder)
-    return folder
+    result = await db.execute(
+        _with_folder_graph(select(models.Folder).where(models.Folder.id == folder.id))
+    )
+    return result.scalar_one()
 
 
 async def soft_delete_folder_by_id(db: AsyncSession, user_id: int, folder_id: int):
@@ -331,5 +332,7 @@ async def soft_delete_folder_by_id(db: AsyncSession, user_id: int, folder_id: in
     )
     await db.commit()
 
-    # Refresh and return the root
-    return await db.scalar(select(fd).where(fd.id == folder_id))
+    result = await db.execute(
+        _with_folder_graph(select(fd).where(fd.id == folder_id))
+    )
+    return result.scalar_one()

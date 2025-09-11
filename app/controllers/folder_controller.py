@@ -24,6 +24,7 @@ async def get_folder_by_id(
 ):
     """
     Get a folder by ID.
+    :param folder_id: Target folder ID.
     :param db: Async SQLAlchemy session.
     :param current_user_id: The ID of the current user.
     :return: The target folder.
@@ -76,6 +77,7 @@ async def create_folder(
 @router.put("/{folder_id}", response_model=folder_schema.FolderResponse)
 async def update_folder(
     folder: folder_schema.FolderUpdate,
+    folder_id: int,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id),
 ):
@@ -83,11 +85,12 @@ async def update_folder(
     Update a folder.
     :param db: Async SQLAlchemy session
     :param current_user_id: User ID
+    :param folder_id: Target folder id
     :param folder: Pydantic model that holds the new folder payload
     :return: The updated folder
     """
     return await folder_service.update_folder(
-        db, user_id=current_user_id, folder_id=folder.id, folder_to_update=folder
+        db, user_id=current_user_id, folder_id=folder_id, folder_to_update=folder
     )
 
 
