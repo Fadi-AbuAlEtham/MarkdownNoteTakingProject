@@ -9,7 +9,7 @@ from app.core.db import get_db
 from app.schemas import tag as tag_schema
 from app.services import tag_service
 
-router = APIRouter(prefix="/users", tags=["user"])
+router = APIRouter(prefix="/tags", tags=["tags"])
 
 
 @router.get(
@@ -40,16 +40,20 @@ async def get_tag_by_id(
     status_code=status.HTTP_200_OK,
 )
 async def get_all_active_tags(
+    skip: int = 0,
+    limit: int = 100,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id),
 ):
     """
     Get all active tags.
+    :param skip: Starting offset
+    :param limit: ending offset
     :param db: Async SQLAlchemy session
     :param current_user_id: User ID
     :return: List of all active tags for the current user
     """
-    return await tag_service.get_all_active_tags(db, current_user_id)
+    return await tag_service.get_all_active_tags(db, current_user_id, skip, limit)
 
 
 @router.post(
