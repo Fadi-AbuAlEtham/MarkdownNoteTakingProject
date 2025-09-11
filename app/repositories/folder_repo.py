@@ -20,14 +20,19 @@ Async folder repository.
 - Prefer CITEXT for case-insensitive title equality without LOWER().
 """
 
+
 def _with_folder_graph(stmt):
     """
     Ensure relationships needed by FolderResponse are loaded to avoid
     lazy I/O during Pydantic serialization.
     """
     return stmt.options(
-        selectinload(models.Folder.parent).load_only(models.Folder.id, models.Folder.title),
-        selectinload(models.Folder.children).load_only(models.Folder.id, models.Folder.title),
+        selectinload(models.Folder.parent).load_only(
+            models.Folder.id, models.Folder.title
+        ),
+        selectinload(models.Folder.children).load_only(
+            models.Folder.id, models.Folder.title
+        ),
     )
 
 
@@ -202,7 +207,9 @@ async def create_folder(db: AsyncSession, user_id: int, folder: schemas.FolderCr
         raise ValueError(f"A folder named '{title}' already exists at this level.")
 
     result = await db.execute(
-        _with_folder_graph(select(models.Folder).where(models.Folder.id == db_folder.id))
+        _with_folder_graph(
+            select(models.Folder).where(models.Folder.id == db_folder.id)
+        )
     )
     return result.scalar_one()
 
@@ -259,7 +266,9 @@ async def update_folder(
         conditions.append(models.Folder.parent_id == target_parent_id)
 
     if await db.scalar(select(exists().where(*conditions))):
-        raise ValueError(f"A folder named '{target_title}' already exists at this level")
+        raise ValueError(
+            f"A folder named '{target_title}' already exists at this level"
+        )
 
     if "title" in data:
         folder.title = target_title
@@ -274,7 +283,9 @@ async def update_folder(
         await db.commit()
     except IntegrityError:
         await db.rollback()
-        raise ValueError(f"A folder named '{target_title}' already exists at this level")
+        raise ValueError(
+            f"A folder named '{target_title}' already exists at this level"
+        )
 
     result = await db.execute(
         _with_folder_graph(select(models.Folder).where(models.Folder.id == folder.id))
@@ -332,7 +343,5 @@ async def soft_delete_folder_by_id(db: AsyncSession, user_id: int, folder_id: in
     )
     await db.commit()
 
-    result = await db.execute(
-        _with_folder_graph(select(fd).where(fd.id == folder_id))
-    )
+    result = await db.execute(_with_folder_graph(select(fd).where(fd.id == folder_id)))
     return result.scalar_one()
