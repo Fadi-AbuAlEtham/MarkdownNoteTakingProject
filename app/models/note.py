@@ -56,7 +56,7 @@ class Note(Base):
     deleted_at = Column(DateTime(timezone=True), nullable=True)
 
     user = relationship("User", back_populates="notes", lazy="selectin")
-    folder = relationship("Folder", back_populates="notes", lazy="joined")
+    folder = relationship("Folder", back_populates="notes", lazy="selectin")
     revisions = relationship(
         "NoteRevision",
         back_populates="note",

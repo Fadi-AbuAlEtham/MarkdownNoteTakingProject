@@ -51,6 +51,12 @@ class Folder(Base):
         "Folder", remote_side=[id], back_populates="children", lazy="raise"
     )
     children = relationship("Folder", back_populates="parent", lazy="raise")
+    notes = relationship(
+        "Note",
+        back_populates="folder",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
 
     __table_args__ = (
         # Unique per user + parent + title, only for active (not soft-deleted) folders

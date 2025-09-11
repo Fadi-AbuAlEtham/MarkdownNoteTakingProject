@@ -37,7 +37,7 @@ class BaseNote(BaseModel):
     is_public: bool = Field(default=False, description="Whether the note is public.")
 
     @field_validator("title", mode="before")
-    def normalize_title(self, v: str) -> str:
+    def normalize_title(cls, v: str) -> str:
         """
         Normalize title **before** validation.
 
@@ -79,7 +79,7 @@ class UpdateNote(BaseModel):
     is_public: Optional[bool] = None
 
     @field_validator("title", mode="before")
-    def normalize_title(self, v: Optional[str]) -> Optional[str]:
+    def normalize_title(cls, v: Optional[str]) -> Optional[str]:
         """
         Normalize title **before** validation.
 

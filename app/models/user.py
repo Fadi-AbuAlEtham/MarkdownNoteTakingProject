@@ -9,6 +9,7 @@ from sqlalchemy import (
     Boolean,
 )
 from sqlalchemy.dialects.postgresql import CITEXT
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.core.db import Base
@@ -39,7 +40,12 @@ class User(Base):
     )
 
     deleted_at = Column(DateTime(timezone=True), nullable=True)
-
+    notes = relationship(
+        "Note",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
     __table_args__ = (
         Index(
             "uq_users_email_active",
