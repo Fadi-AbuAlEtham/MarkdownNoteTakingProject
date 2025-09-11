@@ -30,7 +30,9 @@ async def get_note_by_id_and_user(db: AsyncSession, user_id: int, note_id: int):
     return to_response_dict(note)
 
 
-async def get_all_active_notes(db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100):
+async def get_all_active_notes(
+    db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100
+):
     """
     Get all active notes
     :param db: Async SQLAlchemy session.

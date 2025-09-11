@@ -109,4 +109,6 @@ async def delete_note(
     :param note_id:  of the note to delete
     :return: The deleted note
     """
-    return await note_service.soft_delete_note(db, user_id=current_user_id, note_id=note_id)
+    return await note_service.soft_delete_note(
+        db, user_id=current_user_id, note_id=note_id
+    )

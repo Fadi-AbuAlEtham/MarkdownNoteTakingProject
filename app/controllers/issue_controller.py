@@ -73,7 +73,9 @@ async def create_issue(
     :param issue: Pydantic model that holds the new issue payload
     :return: The newly created issue
     """
-    return await issue_service.create_issue(db, user_id=current_user_id, issue_to_create=issue)
+    return await issue_service.create_issue(
+        db, user_id=current_user_id, issue_to_create=issue
+    )
 
 
 @router.put("/{issue_id}", response_model=issue_schema.ResponseIssue)
@@ -109,4 +111,6 @@ async def delete_issue(
     :param issue_id:  of the issue to delete
     :return: The deleted issue
     """
-    return await issue_service.soft_delete_issue(db, user_id=current_user_id, issue_id=issue_id)
+    return await issue_service.soft_delete_issue(
+        db, user_id=current_user_id, issue_id=issue_id
+    )

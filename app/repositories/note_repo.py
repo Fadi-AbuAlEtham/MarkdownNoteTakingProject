@@ -10,7 +10,9 @@ from ..schemas import note as schemas
 from ..repositories import folder_repo
 
 
-async def get_all_active_notes(db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100):
+async def get_all_active_notes(
+    db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100
+):
     """
     Get all active (non-deleted) notes.
     :param db: Async SQLAlchemy session.

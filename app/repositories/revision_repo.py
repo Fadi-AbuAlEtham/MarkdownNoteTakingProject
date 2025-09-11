@@ -9,10 +9,13 @@ from ..models import note as note_models
 from ..schemas import revision as schemas
 
 
-async def get_all_active_revisions(db: AsyncSession, skip: int = 0, limit: int = 100):
+async def get_all_active_revisions(
+    db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100
+):
     """
     Get all active revisions
     :param db: Async SQLAlchemy session
+    :param user_id: target user id
     :param skip: Number of rows to skip (offset).
     :param limit: Maximum number of rows to return.
     :return: A list of revision objects that are not soft-deleted.
@@ -21,6 +24,7 @@ async def get_all_active_revisions(db: AsyncSession, skip: int = 0, limit: int =
     stmt = (
         select(rev_models.NoteRevision)
         .where(rev_models.NoteRevision.deleted_at.is_(None))
+        .where(rev_models.NoteRevision.user_id == user_id)
         .offset(skip)
         .limit(limit)
     )
@@ -136,14 +140,14 @@ async def create_revision(
     """
 
     try:
-        async with db.begin():
-            if await check_revision_existence(
-                db, user_id=user_id, title=revision.title, note_id=note_id
-            ):
+        async with db.begin_nested():
+            # pre-check
+            if await check_revision_existence(db, user_id=user_id, title=revision.title, note_id=note_id):
                 raise ValueError(
                     f"A revision titled '{revision.title}' already exists for this note."
                 )
 
+            # bump note version atomically within the savepoint
             upd = (
                 update(note_models.Note)
                 .where(
@@ -163,6 +167,7 @@ async def create_revision(
                 raise ValueError("Note not found or not accessible")
             new_version: int = int(row[0])
 
+            # insert revision
             payload = revision.model_dump(exclude={"version", "created_by", "note_id"})
             db_rev = rev_models.NoteRevision(
                 **payload,
@@ -172,12 +177,12 @@ async def create_revision(
             )
             db.add(db_rev)
 
-        # committed successfully; refresh and return
+        await db.commit()
+
         await db.refresh(db_rev)
         return db_rev
 
     except IntegrityError as e:
-        # Extremely unlikely with the atomic counter, but keep a friendly error.
         await db.rollback()
         raise ValueError("Concurrent revision creation conflict; please retry.") from e
 

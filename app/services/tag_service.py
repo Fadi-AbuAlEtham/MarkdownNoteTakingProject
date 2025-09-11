@@ -30,7 +30,9 @@ async def get_tag_by_id_and_user(db: AsyncSession, user_id: int, tag_id: int):
     return to_response_dict(tag)
 
 
-async def get_all_active_tags(db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100):
+async def get_all_active_tags(
+    db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100
+):
     """
     Get all active tags.
     :param user_id: target user_id
