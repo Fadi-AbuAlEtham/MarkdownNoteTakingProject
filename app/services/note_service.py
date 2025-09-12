@@ -2,7 +2,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..schemas import note as schemas_note
-from ..repositories import note_repo
+from ..repositories import note_repo, revision_repo
 
 
 def to_response_dict(obj) -> dict:
@@ -24,9 +24,9 @@ async def get_note_by_id_and_user(db: AsyncSession, user_id: int, note_id: int):
     :param note_id: Target note id
     :return: Target note object.
     """
-    note = await note_repo.get_note_by_id_user(db, user_id, note_id)
+    note = await note_repo.get_note_by_id_user(db, user_id=user_id, note_id=note_id)
     if not note:
-        raise HTTPException(status_code=404, detail="Folder not found")
+        raise HTTPException(status_code=404, detail="Note not found")
     return to_response_dict(note)
 
 
@@ -45,16 +45,18 @@ async def get_all_active_notes(
     return [to_response_dict(n) for n in notes]
 
 
-async def create_note(db: AsyncSession, user_id: int, note: schemas_note.CreateNote):
+async def create_note(
+    db: AsyncSession, user_id: int, note_to_create: schemas_note.CreateNote
+):
     """
     Create new note
     :param db: Async SQLAlchemy session.
     :param user_id: Target user id
-    :param note: Pydantic model that holds the new note payload.
+    :param note_to_create: Pydantic model that holds the new note payload.
     :return: New note object.
     """
     try:
-        note = await note_repo.create_note(db, user_id, note)
+        note = await note_repo.create_note(db, user_id, note_to_create)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     return to_response_dict(note)

@@ -3,9 +3,9 @@ from typing import Optional
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, exists, and_
+from sqlalchemy import select, exists, and_, update, func
 
-from ..models import note as models
+from ..models import note as models, revision as rev_models
 from ..schemas import note as schemas
 from ..repositories import folder_repo
 
@@ -135,10 +135,22 @@ async def create_note(db: AsyncSession, user_id: int, note: schemas.CreateNote):
     db.add(db_note)
 
     try:
+        await db.flush()
+
+        db_note.version = 1
+
+        init_rev = rev_models.NoteRevision(
+            note_id=db_note.id,
+            user_id=user_id,
+            version=1,
+            title=db_note.title,
+            content_md=db_note.content_md,
+        )
+        db.add(init_rev)
+
         await db.commit()
     except IntegrityError:
         await db.rollback()
-        # Catches races that slipped past the pre-check
         raise ValueError(f"A note named '{note.title}' already exists.")
     await db.refresh(db_note)
     return db_note
@@ -200,10 +212,34 @@ async def update_note(
         setattr(note, key, value)
 
     try:
+        await db.flush()
+
+        upd = (
+            update(models.Note)
+            .where(
+                models.Note.id == note_id,
+                models.Note.user_id == user_id,
+                models.Note.deleted_at.is_(None),
+            )
+            .values(version=models.Note.version + 1, updated_at=func.now())
+            .returning(models.Note.version)
+        )
+        res = await db.execute(upd)
+        new_version = res.scalar_one()
+
+        # insert the revision for the *current* note state
+        rev = rev_models.NoteRevision(
+            note_id=note.id,
+            user_id=user_id,
+            version=int(new_version),
+            title=note.title,
+            content_md=note.content_md,
+        )
+        db.add(rev)
+
         await db.commit()
     except IntegrityError:
         await db.rollback()
-        # DB partial-unique index is the final arbiter; translate race to a friendly message
         title_for_msg = data.get("title", note.title)
         raise ValueError(f"A note named '{title_for_msg}' already exists.")
 

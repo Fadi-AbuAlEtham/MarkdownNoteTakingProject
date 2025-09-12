@@ -147,7 +147,7 @@ async def delete_revision(
 
 @router.post(
     "/notes/{note_id}/revisions/{revision_id}/restore",
-    response_model=note_schema.NoteResponse,
+    response_model=revision_schema.RevisionResponse,
     status_code=status.HTTP_200_OK,
 )
 async def restore_revision(

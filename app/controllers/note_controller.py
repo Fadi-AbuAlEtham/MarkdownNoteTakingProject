@@ -73,7 +73,9 @@ async def create_note(
     :param note: Pydantic model that holds the new note payload
     :return: The newly created note
     """
-    return await note_service.create_note(db, user_id=current_user_id, note=note)
+    return await note_service.create_note(
+        db, user_id=current_user_id, note_to_create=note
+    )
 
 
 @router.put("/{note_id}", response_model=note_schema.NoteResponse)

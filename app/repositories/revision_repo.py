@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Any
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,6 +7,7 @@ from sqlalchemy import select, exists, func, update
 
 from ..models import revision as rev_models
 from ..models import note as note_models
+from ..models.revision import NoteRevision
 from ..schemas import revision as schemas
 
 
@@ -296,45 +298,81 @@ async def restore_revision(
     :param revision_id: Revision ID
     :return: The updated revision instance with "deleted_at" and "is_active" attributes.
     """
-    stmt = select(rev_models.NoteRevision).where(
-        rev_models.NoteRevision.id == revision_id,
-        rev_models.NoteRevision.user_id == user_id,
-        rev_models.NoteRevision.note_id == note_id,
-        rev_models.NoteRevision.deleted_at.is_(None),
+    rev = await db.scalar(
+        select(rev_models.NoteRevision).where(
+            rev_models.NoteRevision.id == revision_id,
+            rev_models.NoteRevision.user_id == user_id,
+            rev_models.NoteRevision.note_id == note_id,
+            rev_models.NoteRevision.deleted_at.is_(None),
+        )
     )
-    rev = (await db.execute(stmt)).scalar_one_or_none()
     if not rev:
         raise ValueError("Revision not found")
 
-    upd = (
-        update(note_models.Note)
-        .where(
+    # load current note
+    note = await db.scalar(
+        select(note_models.Note).where(
             note_models.Note.id == note_id,
             note_models.Note.user_id == user_id,
             note_models.Note.deleted_at.is_(None),
         )
-        .values(
-            title=rev.title,
-            content_md=rev.content_md,
-            version=note_models.Note.version + 1,
-            updated_at=func.now(),
-        )
-        .returning(note_models.Note.version)
     )
-    row = (await db.execute(upd)).first()
-    if not row:
+    if not note:
         raise ValueError("Note not found or not accessible")
-    new_version = int(row[0])
 
-    restored = rev_models.NoteRevision(
-        note_id=note_id,
-        user_id=user_id,
-        title=rev.title,
-        content_md=rev.content_md,
-        version=new_version,
-    )
-    db.add(restored)
+    if (
+            (rev.title or "").strip() == (note.title or "").strip()
+            and (rev.content_md or "") == (note.content_md or "")
+            and bool(getattr(rev, "is_public", note.is_public)) == bool(note.is_public)
+            and getattr(rev, "folder_id", note.folder_id) == note.folder_id
+    ):
+        raise ValueError("Revision is identical to the current note; nothing to restore.")
 
-    await db.commit()
-    await db.refresh(restored)
-    return restored
+    try:
+        res = await db.execute(
+            update(note_models.Note)
+            .where(
+                note_models.Note.id == note_id,
+                note_models.Note.user_id == user_id,
+                note_models.Note.deleted_at.is_(None),
+            )
+            .values(
+                title=rev.title,
+                content_md=rev.content_md,
+                is_public=getattr(rev, "is_public", note.is_public),
+                folder_id=getattr(rev, "folder_id", note.folder_id),
+                version=note_models.Note.version + 1,
+                updated_at=func.now(),
+            )
+            .returning(
+                note_models.Note.version,
+                note_models.Note.title,
+                note_models.Note.content_md,
+                note_models.Note.is_public,
+                note_models.Note.folder_id,
+            )
+        )
+        row = res.first()
+        if not row:
+            raise ValueError("Note not found or not accessible")
+
+        new_version, new_title, new_content_md, new_is_public, new_folder_id = row
+
+        restored = rev_models.NoteRevision(
+            note_id=note_id,
+            user_id=user_id,
+            version=int(new_version),
+            title=new_title,
+            content_md=new_content_md,
+            is_public=new_is_public,
+            folder_id=new_folder_id,
+        )
+        db.add(restored)
+
+        await db.commit()
+        await db.refresh(restored)
+        return restored
+
+    except Exception:
+        await db.rollback()
+        raise
