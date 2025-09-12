@@ -29,6 +29,8 @@ class BaseRevision(BaseModel):
     version: int = Field(description="Monotonic version number (>= 1)")
     title: Annotated[Title, Field(description="Revision title")]
     content_md: Annotated[Markdown, Field(description="Markdown content")]
+    is_public: bool = Field(description="Whether the revision is public")
+    folder_id: int = Field(description="Folder ID", gt=0)
 
     @field_validator("version")
     def version_positive(cls, v: int) -> int:
@@ -80,6 +82,8 @@ class UpdateRevision(BaseModel):
 
     title: Optional[Title] = None
     content_md: Optional[Markdown] = None
+    is_public: Optional[bool] = None
+    folder_id: Optional[int] = None
 
     @field_validator("title", mode="before")
     def clean_title(cls, v: Optional[str]) -> Optional[str]:
@@ -115,7 +119,12 @@ class UpdateRevision(BaseModel):
         Raises:
             ValueError: If no updatable fields are provided.
         """
-        if self.title is None and self.content_md is None:
+        if (
+            self.title is None
+            and self.content_md is None
+            and self.is_public is None
+            and self.folder_id is None
+        ):
             raise ValueError("At least one field must be provided for update")
         return self
 

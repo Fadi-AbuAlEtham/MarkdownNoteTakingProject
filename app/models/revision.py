@@ -41,6 +41,13 @@ class NoteRevision(Base):
         nullable=True,
     )
 
+    is_public = Column(Boolean, nullable=False, server_default=text("false"))
+    folder_id = Column(
+        BigInteger,
+        ForeignKey("folders.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
     is_active = Column(Boolean, server_default="true", nullable=False)
 
     created_at = Column(
@@ -63,7 +70,10 @@ class NoteRevision(Base):
             "note_id",
             postgresql_where=text("deleted_at IS NULL"),
         ),
+        Index("ix_note_revisions_folder", "folder_id"),
+        Index("ix_note_revisions_public", "is_public"),
     )
 
     note = relationship("Note", back_populates="revisions", lazy="selectin")
     author = relationship("User", lazy="joined")
+    folder = relationship("Folder", lazy="selectin")
