@@ -46,6 +46,29 @@ async def get_all_revisions(db: AsyncSession, skip: int = 0, limit: int = 100):
     return result.scalars().all()
 
 
+async def get_revisions_for_note(
+    db: AsyncSession, user_id: int, note_id: int, skip: int = 0, limit: int = 100
+):
+    """
+    Get all revisions for a note
+    :param db: Async SQLAlchemy session
+    :param user_id: target user id
+    :param note_id: target note id
+    :param skip: Number of rows to skip (offset).
+    :param limit: Maximum number of rows to return.
+    :return: A list of revision objects that are not soft-deleted.
+    """
+    stmt = (
+        select(rev_models.NoteRevision)
+        .where(rev_models.NoteRevision.user_id == user_id)
+        .where(rev_models.NoteRevision.note_id == note_id)
+        .offset(skip)
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
 async def get_revision_by_id(db: AsyncSession, revision_id: int):
     """
     Get revision by id
@@ -142,7 +165,9 @@ async def create_revision(
     try:
         async with db.begin_nested():
             # pre-check
-            if await check_revision_existence(db, user_id=user_id, title=revision.title, note_id=note_id):
+            if await check_revision_existence(
+                db, user_id=user_id, title=revision.title, note_id=note_id
+            ):
                 raise ValueError(
                     f"A revision titled '{revision.title}' already exists for this note."
                 )
@@ -258,3 +283,58 @@ async def soft_delete_by_id(db: AsyncSession, user_id: int, revision_id: int):
     await db.commit()
     await db.refresh(revision)
     return revision
+
+
+async def restore_revision(
+    db: AsyncSession, user_id: int, note_id: int, revision_id: int
+):
+    """
+    Restore a revision.
+    :param db: Async SQLAlchemy session.
+    :param user_id: Target User ID.
+    :param note_id: Revision note ID.
+    :param revision_id: Revision ID
+    :return: The updated revision instance with "deleted_at" and "is_active" attributes.
+    """
+    stmt = select(rev_models.NoteRevision).where(
+        rev_models.NoteRevision.id == revision_id,
+        rev_models.NoteRevision.user_id == user_id,
+        rev_models.NoteRevision.note_id == note_id,
+        rev_models.NoteRevision.deleted_at.is_(None),
+    )
+    rev = (await db.execute(stmt)).scalar_one_or_none()
+    if not rev:
+        raise ValueError("Revision not found")
+
+    upd = (
+        update(note_models.Note)
+        .where(
+            note_models.Note.id == note_id,
+            note_models.Note.user_id == user_id,
+            note_models.Note.deleted_at.is_(None),
+        )
+        .values(
+            title=rev.title,
+            content_md=rev.content_md,
+            version=note_models.Note.version + 1,
+            updated_at=func.now(),
+        )
+        .returning(note_models.Note.version)
+    )
+    row = (await db.execute(upd)).first()
+    if not row:
+        raise ValueError("Note not found or not accessible")
+    new_version = int(row[0])
+
+    restored = rev_models.NoteRevision(
+        note_id=note_id,
+        user_id=user_id,
+        title=rev.title,
+        content_md=rev.content_md,
+        version=new_version,
+    )
+    db.add(restored)
+
+    await db.commit()
+    await db.refresh(restored)
+    return restored

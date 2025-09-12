@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user_id
 from app.core.db import get_db
-from app.schemas import revision as revision_schema
+from app.schemas import revision as revision_schema, note as note_schema
 from app.services import revision_service
 
 
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/revisions", tags=["revisions"])
     response_model=revision_schema.RevisionResponse,
     status_code=status.HTTP_200_OK,
 )
-async def get_tag_by_id(
+async def get_revision_by_id(
     revision_id: Annotated[int, Path(title="The ID of the revision to get", gt=0)],
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id),
@@ -56,6 +56,32 @@ async def get_all_active_revision(
     """
     return await revision_service.get_all_active_revisions(
         db, current_user_id, skip, limit
+    )
+
+
+@router.get(
+    "/notes/{note_id}/revisions",
+    response_model=List[revision_schema.RevisionResponse],
+    status_code=status.HTTP_200_OK,
+)
+async def get_revisions_for_note(
+    note_id: Annotated[int, Path(title="The ID of the note to get", gt=0)],
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id),
+):
+    """
+    Get all active revisions.
+    :param note_id: Target note ID.
+    :param skip: Starting offset
+    :param limit: ending offset
+    :param db: Async SQLAlchemy session
+    :param current_user_id: User ID
+    :return: List of all active tags for the current user
+    """
+    return await revision_service.get_revisions_for_note(
+        db=db, user_id=current_user_id, skip=skip, limit=limit, note_id=note_id
     )
 
 
@@ -116,4 +142,20 @@ async def delete_revision(
     """
     return await revision_service.soft_delete_revision(
         db, user_id=current_user_id, revision_id=revision_id
+    )
+
+
+@router.post(
+    "/notes/{note_id}/revisions/{revision_id}/restore",
+    response_model=note_schema.NoteResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def restore_revision(
+    note_id: int,
+    revision_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id),
+):
+    return await revision_service.restore_revision(
+        db, current_user_id, note_id, revision_id
     )
