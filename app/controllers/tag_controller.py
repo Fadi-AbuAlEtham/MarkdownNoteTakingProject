@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user_id
 from app.core.db import get_db
-from app.schemas import tag as tag_schema
+from app.schemas import tag as tag_schema, note_tag as note_tag_schema
 from app.services import tag_service
 
 router = APIRouter(prefix="/tags", tags=["tags"])
@@ -54,6 +54,21 @@ async def get_all_active_tags(
     :return: List of all active tags for the current user
     """
     return await tag_service.get_all_active_tags(db, current_user_id, skip, limit)
+
+
+@router.get(
+    "/{tag_id}/notes",
+    response_model=note_tag_schema.TagWithNotesResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_notes_for_tag(
+    tag_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id),
+):
+    return await tag_service.get_active_notes_for_tag(
+        db, user_id=current_user_id, tag_id=tag_id
+    )
 
 
 @router.post(

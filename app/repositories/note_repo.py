@@ -4,9 +4,11 @@ from typing import Optional, Any, Coroutine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, exists, and_, update, func, RowMapping, Row
+from sqlalchemy.orm import selectinload
 
 from ..models import note as models, revision as rev_models
 from ..models.tag import Tag
+from app.models.tag import note_tags
 from ..schemas import note as schemas
 from ..repositories import folder_repo
 
@@ -66,6 +68,53 @@ async def get_all_active_notes_user(
     )
     result = await db.execute(stmt)
     return result.scalars().all()
+
+
+async def get_active_notes_in_folder(db, user_id: int, folder_id: int):
+    """
+    Get all active (non-deleted) notes for a certain folder.
+    :param db: Async SQLAlchemy session.
+    :param user_id: Target user id.
+    :param folder_id: Target folder id.
+    :return: List of active notes.
+    """
+    stmt = (
+        select(models.Note)
+        .where(
+            models.Note.user_id == user_id,
+            models.Note.folder_id == folder_id,
+            models.Note.deleted_at.is_(None),
+        )
+        .order_by(models.Note.updated_at.desc())
+        .options(
+            selectinload(models.Note.tags),
+            selectinload(models.Note.folder),
+        )
+    )
+    res = await db.execute(stmt)
+    return res.scalars().all()
+
+
+async def get_active_notes_by_tag(db, user_id: int, tag_id: int):
+    """
+    Return the user's active notes that are associated with a given tag.
+    """
+    stmt = (
+        select(models.Note)
+        .join(note_tags, note_tags.c.note_id == models.Note.id)
+        .where(
+            models.Note.user_id == user_id,
+            note_tags.c.tag_id == tag_id,
+            models.Note.deleted_at.is_(None),
+        )
+        .order_by(models.Note.updated_at.desc())
+        .options(
+            selectinload(models.Note.tags),
+            selectinload(models.Note.folder),
+        )
+    )
+    res = await db.execute(stmt)
+    return res.scalars().all()
 
 
 async def get_note_by_id_user(db: AsyncSession, note_id: int, user_id: int):

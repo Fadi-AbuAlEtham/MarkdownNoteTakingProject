@@ -1,8 +1,8 @@
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..schemas import tag as schemas_tag
-from ..repositories import tag_repo
+from ..schemas import tag as schemas_tag, note as note_schema
+from ..repositories import tag_repo, note_repo
 
 
 def to_response_dict(obj) -> dict:
@@ -12,6 +12,17 @@ def to_response_dict(obj) -> dict:
     :return: Response dict.
     """
     return schemas_tag.TagResponse.model_validate(
+        obj, from_attributes=True
+    ).model_dump()
+
+
+def note_to_response(obj) -> dict:
+    """
+    Convert note to response.
+    :param obj: Note to convert.
+    :return: Note to response.
+    """
+    return note_schema.NoteResponse.model_validate(
         obj, from_attributes=True
     ).model_dump()
 
@@ -55,6 +66,26 @@ async def get_all_tags(db: AsyncSession, skip: int = 0, limit: int = 100):
     """
     tags = await tag_repo.get_all_tags(db, skip=skip, limit=limit)
     return [to_response_dict(t) for t in tags]
+
+
+async def get_active_notes_for_tag(db: AsyncSession, user_id: int, tag_id: int):
+    """
+    Get active notes for a tag.
+    :param db: Async SQLAlchemy session.
+    :param user_id: target user_id
+    :param tag_id: Target tag ID
+    :return: Active notes for a tag.
+    """
+    tag = await tag_repo.get_tag_by_id_and_user(db, user_id=user_id, tag_id=tag_id)
+    if not tag:
+        raise HTTPException(status_code=404, detail="Tag not found")
+
+    notes = await note_repo.get_active_notes_by_tag(db, user_id=user_id, tag_id=tag_id)
+
+    return {
+        "tag": to_response_dict(tag),
+        "notes": [note_to_response(n) for n in notes],
+    }
 
 
 async def create_tag(
