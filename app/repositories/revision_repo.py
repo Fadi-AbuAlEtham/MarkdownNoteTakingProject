@@ -4,6 +4,7 @@ from typing import Any
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, exists, func, update
+from sqlalchemy.orm import selectinload
 
 from ..models import revision as rev_models
 from ..models import note as note_models
@@ -166,35 +167,33 @@ async def create_revision(
 
     try:
         async with db.begin_nested():
-            # pre-check
-            if await check_revision_existence(
-                db, user_id=user_id, title=revision.title, note_id=note_id
-            ):
-                raise ValueError(
-                    f"A revision titled '{revision.title}' already exists for this note."
-                )
+            if await check_revision_existence(db, user_id=user_id, title=revision.title, note_id=note_id):
+                raise ValueError(f"A revision titled '{revision.title}' already exists for this note.")
 
-            # bump note version atomically within the savepoint
-            upd = (
-                update(note_models.Note)
+            note = await db.scalar(
+                select(note_models.Note)
+                .options(selectinload(note_models.Note.tags))
                 .where(
                     note_models.Note.id == note_id,
                     note_models.Note.user_id == user_id,
                     note_models.Note.deleted_at.is_(None),
                 )
-                .values(
-                    version=note_models.Note.version + 1,
-                    updated_at=func.now(),
-                )
+            )
+            if not note:
+                raise ValueError("Note not found or not accessible")
+
+            # bump version
+            res = await db.execute(
+                update(note_models.Note)
+                .where(note_models.Note.id == note_id)
+                .values(version=note_models.Note.version + 1, updated_at=func.now())
                 .returning(note_models.Note.version)
             )
-            res = await db.execute(upd)
             row = res.first()
             if not row:
                 raise ValueError("Note not found or not accessible")
             new_version: int = int(row[0])
 
-            # insert revision
             payload = revision.model_dump(exclude={"version", "created_by", "note_id"})
             db_rev = rev_models.NoteRevision(
                 **payload,
@@ -202,17 +201,16 @@ async def create_revision(
                 user_id=user_id,
                 version=new_version,
             )
+            db_rev.tags = list(note.tags)
             db.add(db_rev)
 
         await db.commit()
-
         await db.refresh(db_rev)
         return db_rev
 
     except IntegrityError as e:
         await db.rollback()
         raise ValueError("Concurrent revision creation conflict; please retry.") from e
-
 
 async def update_revision(
     db: AsyncSession,
@@ -298,8 +296,10 @@ async def restore_revision(
     :param revision_id: Revision ID
     :return: The updated revision instance with "deleted_at" and "is_active" attributes.
     """
-    rev = await db.scalar(
-        select(rev_models.NoteRevision).where(
+    rev: NoteRevision = await db.scalar(
+        select(rev_models.NoteRevision)
+        .options(selectinload(rev_models.NoteRevision.tags))
+        .where(
             rev_models.NoteRevision.id == revision_id,
             rev_models.NoteRevision.user_id == user_id,
             rev_models.NoteRevision.note_id == note_id,
@@ -309,9 +309,10 @@ async def restore_revision(
     if not rev:
         raise ValueError("Revision not found")
 
-    # load current note
     note = await db.scalar(
-        select(note_models.Note).where(
+        select(note_models.Note)
+        .options(selectinload(note_models.Note.tags))
+        .where(
             note_models.Note.id == note_id,
             note_models.Note.user_id == user_id,
             note_models.Note.deleted_at.is_(None),
@@ -320,17 +321,20 @@ async def restore_revision(
     if not note:
         raise ValueError("Note not found or not accessible")
 
+    rev_tag_ids = {t.id for t in (rev.tags or [])}
+    note_tag_ids = {t.id for t in (note.tags or [])}
+
     if (
-        (rev.title or "").strip() == (note.title or "").strip()
-        and (rev.content_md or "") == (note.content_md or "")
-        and bool(getattr(rev, "is_public", note.is_public)) == bool(note.is_public)
-        and getattr(rev, "folder_id", note.folder_id) == note.folder_id
+            (rev.title or "").strip() == (note.title or "").strip()
+            and (rev.content_md or "") == (note.content_md or "")
+            and bool(getattr(rev, "is_public", note.is_public)) == bool(note.is_public)
+            and getattr(rev, "folder_id", note.folder_id) == note.folder_id
+            and rev_tag_ids == note_tag_ids
     ):
-        raise ValueError(
-            "Revision is identical to the current note; nothing to restore."
-        )
+        raise ValueError("Revision is identical to the current note; nothing to restore.")
 
     try:
+        # bump note version & update fields
         res = await db.execute(
             update(note_models.Note)
             .where(
@@ -360,6 +364,8 @@ async def restore_revision(
 
         new_version, new_title, new_content_md, new_is_public, new_folder_id = row
 
+        note.tags = list(rev.tags)
+
         restored = rev_models.NoteRevision(
             note_id=note_id,
             user_id=user_id,
@@ -369,6 +375,7 @@ async def restore_revision(
             is_public=new_is_public,
             folder_id=new_folder_id,
         )
+        restored.tags = list(rev.tags)
         db.add(restored)
 
         await db.commit()

@@ -1,4 +1,4 @@
-from typing import Optional, Annotated
+from typing import Optional, Annotated, List
 from datetime import datetime
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic.config import ConfigDict
@@ -31,6 +31,7 @@ class BaseRevision(BaseModel):
     content_md: Annotated[Markdown, Field(description="Markdown content")]
     is_public: bool = Field(description="Whether the revision is public")
     folder_id: int = Field(description="Folder ID", gt=0)
+    tag_ids: List[int] = Field(default_factory=list, description="Tag IDs")
 
     @field_validator("version")
     def version_positive(cls, v: int) -> int:
@@ -124,6 +125,7 @@ class UpdateRevision(BaseModel):
             and self.content_md is None
             and self.is_public is None
             and self.folder_id is None
+            and self.tag_ids is None
         ):
             raise ValueError("At least one field must be provided for update")
         return self
@@ -143,3 +145,10 @@ class RevisionResponse(BaseRevision):
     created_at: datetime
     updated_at: datetime
     is_active: bool
+    tags: list[int] = []
+
+    @field_validator("tags", mode="before")
+    def tags_to_ids(cls, v):
+        if v is None:
+            return []
+        return [getattr(t, "id", t) for t in v]

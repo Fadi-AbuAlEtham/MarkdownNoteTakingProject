@@ -10,7 +10,7 @@ from sqlalchemy import (
     UniqueConstraint,
     Index,
     Boolean,
-    text,
+    text, Table,
 )
 from sqlalchemy.dialects.postgresql import CITEXT
 from sqlalchemy.sql import func
@@ -77,3 +77,30 @@ class NoteRevision(Base):
     note = relationship("Note", back_populates="revisions", lazy="selectin")
     author = relationship("User", lazy="joined")
     folder = relationship("Folder", lazy="selectin")
+    tags = relationship(
+        "Tag",
+        secondary="note_revision_tags",
+        lazy="selectin",
+    )
+
+
+note_revision_tags = Table(
+    "note_revision_tags",
+    Base.metadata,
+    Column(
+        "revision_id",
+        BigInteger,
+        ForeignKey("note_revisions.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    ),
+    Column(
+        "tag_id",
+        BigInteger,
+        ForeignKey("tags.id", ondelete="CASCADE"),
+        primary_key=True,
+        nullable=False,
+    ),
+    Index("ix_note_revision_tags_revision", "revision_id"),
+    Index("ix_note_revision_tags_tag", "tag_id"),
+)

@@ -162,6 +162,7 @@ async def create_note(db: AsyncSession, user_id: int, note: schemas.CreateNote):
             content_md=db_note.content_md,
             folder_id=db_note.folder_id,
         )
+        init_rev.tags = list(note.tags)
         db.add(init_rev)
 
         await db.commit()
@@ -269,6 +270,7 @@ async def update_note(
             content_md=note.content_md,
             folder_id=note.folder_id,
         )
+        rev.tags = list(note.tags)
         db.add(rev)
 
         await db.commit()
