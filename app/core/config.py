@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
@@ -24,5 +26,13 @@ class Settings(BaseSettings):
         "extra": "ignore",
     }
 
+class GrammarSettings(BaseSettings):
+    LT_BASE_URL: str = "https://api.languagetool.org"
+    LT_API_KEY: Optional[str] = None
+    LT_AUTH_HEADER: Optional[str] = None
+    LT_LEVEL: str = "default"
+
+    class Config:
+        env_file = ".env"
 
 settings = Settings()

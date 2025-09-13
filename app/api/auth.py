@@ -33,12 +33,3 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
 
     token = create_access_token(user.id, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     return {"access_token": token, "token_type": "bearer"}
-
-
-@router.get("/logout")
-async def logout():
-    """
-    Logout the current user.
-    :param db: The database to use.
-    """
-    return {"message": "Successfully logged out"}

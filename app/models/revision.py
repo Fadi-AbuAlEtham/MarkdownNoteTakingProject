@@ -83,6 +83,9 @@ class NoteRevision(Base):
         secondary="note_revision_tags",
         lazy="selectin",
     )
+    grammar_audits = relationship(
+        "GrammarAudit", lazy="selectin", back_populates="revision"
+    )
 
 
 note_revision_tags = Table(
