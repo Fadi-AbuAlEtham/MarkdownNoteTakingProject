@@ -7,6 +7,7 @@ from sqlalchemy import (
     Identity,
     Boolean,
     Index,
+    text,
 )
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship, backref
@@ -66,13 +67,13 @@ class Folder(Base):
             parent_id,
             title,
             unique=True,
-            postgresql_where=deleted_at.is_(None),
+            postgresql_where=text("deleted_at IS NULL"),
         ),
         # helper index to speed common lookups
         Index(
             "ix_folders_user_parent_active",
             user_id,
             parent_id,
-            postgresql_where=deleted_at.is_(None),
+            postgresql_where=text("deleted_at IS NULL"),
         ),
     )

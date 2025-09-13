@@ -6,11 +6,13 @@ from sqlalchemy import (
     Identity,
     Boolean,
     Index,
+    text,
 )
 from sqlalchemy.dialects.postgresql import CITEXT
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship, backref
 from app.core.db import Base
+from app.models.note_tag import note_tags
 
 
 class Tag(Base):
@@ -43,20 +45,21 @@ class Tag(Base):
     user = relationship(
         "User", backref=backref("tags", cascade="all, delete-orphan", lazy="selectin")
     )
+    notes = relationship(
+        "Note", secondary=note_tags, back_populates="tags", lazy="selectin"
+    )
 
     __table_args__ = (
-        # Unique per user among *active* (not soft-deleted) tags
         Index(
             "uq_tags_user_title_active",
             user_id,
             title,
             unique=True,
-            postgresql_where=deleted_at.is_(None),
+            postgresql_where=text("deleted_at IS NULL"),
         ),
-        # Helpful for lookups by owner (active only)
         Index(
             "ix_tags_user_active",
             user_id,
-            postgresql_where=deleted_at.is_(None),
+            postgresql_where=text("deleted_at IS NULL"),
         ),
     )

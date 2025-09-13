@@ -1,11 +1,12 @@
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Any, Coroutine
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, exists, and_, update, func
+from sqlalchemy import select, exists, and_, update, func, RowMapping, Row
 
 from ..models import note as models, revision as rev_models
+from ..models.tag import Tag
 from ..schemas import note as schemas
 from ..repositories import folder_repo
 
@@ -123,16 +124,30 @@ async def create_note(db: AsyncSession, user_id: int, note: schemas.CreateNote):
         if not folder_exists:
             raise ValueError(f"Folder with id {note.folder_id} was not found.")
 
+    ignored_tag_ids: list[int] = []
+    valid_tag_ids: set[int] = set()
+
+    if note.tag_ids:
+        candidate_ids = {int(t) for t in note.tag_ids if t is not None}
+
+        if candidate_ids:
+            ignored_tag_ids, valid_tag_ids = await validate_tags(
+                candidate_ids=candidate_ids, db=db, user_id=user_id
+            )
+
     if await check_note_existence(
         db=db, title=note.title, user_id=user_id, folder_id=note.folder_id
     ):
         raise ValueError(f"This title: {note.title} exists from before.")
 
-    payload = note.model_dump()
+    payload = note.model_dump(exclude={"tag_ids"})
     payload["user_id"] = user_id
-
     db_note = models.Note(**payload)
     db.add(db_note)
+
+    if valid_tag_ids:
+        tag_rows = await db.execute(select(Tag).where(Tag.id.in_(valid_tag_ids)))
+        db_note.tags = list(tag_rows.scalars().all())
 
     try:
         await db.flush()
@@ -145,6 +160,7 @@ async def create_note(db: AsyncSession, user_id: int, note: schemas.CreateNote):
             version=1,
             title=db_note.title,
             content_md=db_note.content_md,
+            folder_id=db_note.folder_id,
         )
         db.add(init_rev)
 
@@ -153,7 +169,7 @@ async def create_note(db: AsyncSession, user_id: int, note: schemas.CreateNote):
         await db.rollback()
         raise ValueError(f"A note named '{note.title}' already exists.")
     await db.refresh(db_note)
-    return db_note
+    return db_note, ignored_tag_ids
 
 
 async def update_note(
@@ -208,6 +224,23 @@ async def update_note(
                 f"A note named '{target_title}' already exists in {scope}."
             )
 
+    ignored_tag_ids: list[int] = []
+    if "tag_ids" in data:
+        incoming = data["tag_ids"] or []
+        candidate_ids = {int(t) for t in incoming if t is not None}
+
+        if candidate_ids:
+            ignored_tag_ids, valid_ids = await validate_tags(
+                candidate_ids=candidate_ids, db=db, user_id=user_id
+            )
+
+            tag_rows = await db.execute(select(Tag).where(Tag.id.in_(valid_ids)))
+            note.tags = list(tag_rows.scalars().all())
+        else:
+            note.tags = []
+
+        data.pop("tag_ids", None)
+
     for key, value in data.items():
         setattr(note, key, value)
 
@@ -234,6 +267,7 @@ async def update_note(
             version=int(new_version),
             title=note.title,
             content_md=note.content_md,
+            folder_id=note.folder_id,
         )
         db.add(rev)
 
@@ -244,7 +278,24 @@ async def update_note(
         raise ValueError(f"A note named '{title_for_msg}' already exists.")
 
     await db.refresh(note)
-    return note
+    return note, ignored_tag_ids
+
+
+async def validate_tags(
+    candidate_ids: set[int], db: AsyncSession, user_id: int
+) -> tuple[list[int], set[Row[Any] | RowMapping | Any]]:
+    res = await db.execute(
+        select(Tag.id).where(
+            Tag.user_id == user_id,
+            Tag.deleted_at.is_(None),
+            Tag.id.in_(candidate_ids),
+        )
+    )
+    valid_ids = set(res.scalars().all())
+    ignored_tag_ids = sorted(candidate_ids - valid_ids)
+    if not valid_ids:
+        raise ValueError(f"No valid tags found for IDs: {sorted(candidate_ids)}")
+    return ignored_tag_ids, valid_ids
 
 
 async def soft_delete_by_id(db: AsyncSession, user_id: int, note_id: int):

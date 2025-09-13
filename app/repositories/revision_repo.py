@@ -321,12 +321,14 @@ async def restore_revision(
         raise ValueError("Note not found or not accessible")
 
     if (
-            (rev.title or "").strip() == (note.title or "").strip()
-            and (rev.content_md or "") == (note.content_md or "")
-            and bool(getattr(rev, "is_public", note.is_public)) == bool(note.is_public)
-            and getattr(rev, "folder_id", note.folder_id) == note.folder_id
+        (rev.title or "").strip() == (note.title or "").strip()
+        and (rev.content_md or "") == (note.content_md or "")
+        and bool(getattr(rev, "is_public", note.is_public)) == bool(note.is_public)
+        and getattr(rev, "folder_id", note.folder_id) == note.folder_id
     ):
-        raise ValueError("Revision is identical to the current note; nothing to restore.")
+        raise ValueError(
+            "Revision is identical to the current note; nothing to restore."
+        )
 
     try:
         res = await db.execute(

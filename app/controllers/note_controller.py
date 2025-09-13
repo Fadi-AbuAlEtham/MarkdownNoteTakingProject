@@ -1,6 +1,6 @@
 from typing import Annotated, List
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Response
 from fastapi.params import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -62,7 +62,8 @@ async def get_all_active_note(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_note(
-    note: note_schema.CreateNote,
+    note_to_create: note_schema.CreateNote,
+    response: Response,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id),
 ):
@@ -70,18 +71,21 @@ async def create_note(
     Create a new note.
     :param db: Async SQLAlchemy session
     :param current_user_id: User ID
-    :param note: Pydantic model that holds the new note payload
+    :param note_to_create: Pydantic model that holds the new note payload
+    :param response: Response model
     :return: The newly created note
     """
-    return await note_service.create_note(
-        db, user_id=current_user_id, note_to_create=note
-    )
+    note, ignored = await note_service.create_note(db, current_user_id, note_to_create)
+    if ignored:
+        response.headers["X-Ignored-Tags"] = ",".join(map(str, ignored))
+    return note
 
 
 @router.put("/{note_id}", response_model=note_schema.NoteResponse)
 async def update_note(
-    note: note_schema.UpdateNote,
+    note_to_update: note_schema.UpdateNote,
     note_id: int,
+    response: Response,
     db: AsyncSession = Depends(get_db),
     current_user_id: int = Depends(get_current_user_id),
 ):
@@ -90,12 +94,16 @@ async def update_note(
     :param db: Async SQLAlchemy session
     :param current_user_id: User ID
     :param note_id: Target note id
-    :param note: Pydantic model that holds the new note payload
+    :param response: Response model
+    :param note_to_update: Pydantic model that holds the new note payload
     :return: The updated note
     """
-    return await note_service.update_note(
-        db, user_id=current_user_id, note_id=note_id, note=note
+    note, ignored = await note_service.update_note(
+        db, current_user_id, note_id, note_to_update
     )
+    if ignored:
+        response.headers["X-Ignored-Tags"] = ",".join(map(str, ignored))
+    return note
 
 
 @router.delete("/{note_id}", response_model=note_schema.NoteResponse)

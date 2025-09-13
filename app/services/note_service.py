@@ -56,10 +56,10 @@ async def create_note(
     :return: New note object.
     """
     try:
-        note = await note_repo.create_note(db, user_id, note_to_create)
+        note, ignored = await note_repo.create_note(db, user_id, note_to_create)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
-    return to_response_dict(note)
+    return to_response_dict(note), ignored
 
 
 async def update_note(
@@ -74,7 +74,7 @@ async def update_note(
     :return: Updated note object.
     """
     try:
-        note = await note_repo.update_note(
+        note, ignored = await note_repo.update_note(
             db, user_id=user_id, note_id=note_id, updated_note=note
         )
     except ValueError as e:
@@ -87,7 +87,7 @@ async def update_note(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Tag not found"
         )
-    return to_response_dict(note)
+    return to_response_dict(note), ignored
 
 
 async def soft_delete_note(db: AsyncSession, user_id: int, note_id: int):

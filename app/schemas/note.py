@@ -1,14 +1,16 @@
-from typing import Optional, Annotated
+from typing import Optional, Annotated, List
 from datetime import datetime
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic.config import ConfigDict
 from pydantic.types import StringConstraints as StrConst
 
+from app.schemas.tag import TagLite
+
 """Note schemas
 
 Write:
 - CreateNote: title, content_md, is_public (default False),
-  folder_id (optional).
+  folder_id (optional), tag_ids (optional).
 
 Update:
 - UpdateNote: partial fields;
@@ -63,6 +65,7 @@ class CreateNote(BaseNote):
     """
 
     folder_id: Optional[int] = Field(default=None, description="Folder ID (FK)")
+    tag_ids: Optional[List[int]] = Field(default=None, description="Tag IDs (FK)")
 
 
 class UpdateNote(BaseModel):
@@ -74,6 +77,7 @@ class UpdateNote(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     folder_id: Optional[int] = None
+    tag_ids: Optional[List[int]] = None
     title: Optional[Title] = None
     content_md: Optional[Markdown] = None
     is_public: Optional[bool] = None
@@ -117,6 +121,7 @@ class UpdateNote(BaseModel):
             and self.title is None
             and self.content_md is None
             and self.is_public is None
+            and self.tag_ids is None
         ):
             raise ValueError("At least one field must be provided for update")
         return self
@@ -133,6 +138,7 @@ class NoteResponse(BaseNote):
     id: int
     user_id: int
     folder_id: Optional[int]
+    tags: Optional[list[TagLite]]
     version: int
     created_at: datetime
     updated_at: datetime

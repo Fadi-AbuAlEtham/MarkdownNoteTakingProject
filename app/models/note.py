@@ -15,6 +15,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import CITEXT
 from app.core.db import Base
+from app.models.note_tag import note_tags
 
 
 class Note(Base):
@@ -65,6 +66,9 @@ class Note(Base):
     )
     issues = relationship(
         "Issue", back_populates="note", lazy="selectin", cascade="all, delete-orphan"
+    )
+    tags = relationship(
+        "Tag", secondary=note_tags, back_populates="notes", lazy="selectin"
     )
 
     __table_args__ = (

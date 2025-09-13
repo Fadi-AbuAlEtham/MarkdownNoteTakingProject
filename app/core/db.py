@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 
 Base = declarative_base()
 import app.models.user  # noqa: F401
+import app.models.note_tag  # noqa: F401
 import app.models.folder  # noqa: F401
 import app.models.note  # noqa: F401
 import app.models.revision  # noqa: F401

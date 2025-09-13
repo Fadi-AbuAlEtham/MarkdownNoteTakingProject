@@ -103,3 +103,9 @@ class TagResponse(BaseTag):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+
+class TagLite(BaseModel):
+    id: int
+    title: str
+    model_config = ConfigDict(from_attributes=True)
