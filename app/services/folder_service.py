@@ -1,8 +1,8 @@
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..schemas import folder as schemas_issue
-from ..repositories import folder_repo
+from ..schemas import folder as schemas_folder, note as schemas_note
+from ..repositories import folder_repo, note_repo
 
 
 def to_response_dict(obj) -> dict:
@@ -11,8 +11,14 @@ def to_response_dict(obj) -> dict:
     :param obj: Response to convert.
     :return: Response dict.
     """
-    return schemas_issue.FolderResponse.model_validate(
+    return schemas_folder.FolderResponse.model_validate(
         obj, from_attributes=True
+    ).model_dump()
+
+
+def note_to_response(n) -> dict:
+    return schemas_note.NoteResponse.model_validate(
+        n, from_attributes=True
     ).model_dump()
 
 
@@ -47,8 +53,32 @@ async def get_all_active_folders(
     return [to_response_dict(f) for f in folders]
 
 
+async def get_active_notes_in_folder(db: AsyncSession, user_id: int, folder_id: int):
+    """
+    Get active notes in folder.
+    :param db: Async SQLAlchemy session
+    :param user_id: Target user id
+    :param folder_id: Target folder id
+    :return: List of active notes in folder
+    """
+    folder = await folder_repo.get_folder_by_id_and_user(
+        db, user_id=user_id, folder_id=folder_id
+    )
+    if not folder or folder.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Folder not found")
+
+    notes = await note_repo.get_active_notes_in_folder(
+        db, user_id=user_id, folder_id=folder_id
+    )
+
+    return {
+        "folder": to_response_dict(folder),
+        "notes": [note_to_response(n) for n in notes],
+    }
+
+
 async def create_folder(
-    db: AsyncSession, user_id: int, folder_to_create: schemas_issue.FolderCreate
+    db: AsyncSession, user_id: int, folder_to_create: schemas_folder.FolderCreate
 ):
     """
     Create new folder
@@ -68,7 +98,7 @@ async def update_folder(
     db: AsyncSession,
     user_id: int,
     folder_id: int,
-    folder_to_update: schemas_issue.FolderUpdate,
+    folder_to_update: schemas_folder.FolderUpdate,
 ):
     """
     Update folder

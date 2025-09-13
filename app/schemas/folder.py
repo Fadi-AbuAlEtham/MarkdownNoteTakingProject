@@ -3,6 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic.config import ConfigDict
 from pydantic.types import StringConstraints as StrConst
+from .note import NoteResponse
 
 """Folder schemas
 
@@ -158,3 +159,8 @@ class FolderResponse(BaseFolder):
     is_active: bool
     parent: Optional[FolderShort] = None
     children: List[FolderShort] = Field(default_factory=list)
+
+
+class FolderWithNotesResponse(BaseModel):
+    folder: FolderResponse
+    notes: List[NoteResponse]

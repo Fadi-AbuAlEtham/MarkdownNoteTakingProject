@@ -10,7 +10,8 @@ from sqlalchemy import (
     UniqueConstraint,
     Index,
     Boolean,
-    text, Table,
+    text,
+    Table,
 )
 from sqlalchemy.dialects.postgresql import CITEXT
 from sqlalchemy.sql import func

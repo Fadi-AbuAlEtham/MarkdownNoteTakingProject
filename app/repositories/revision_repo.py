@@ -167,8 +167,12 @@ async def create_revision(
 
     try:
         async with db.begin_nested():
-            if await check_revision_existence(db, user_id=user_id, title=revision.title, note_id=note_id):
-                raise ValueError(f"A revision titled '{revision.title}' already exists for this note.")
+            if await check_revision_existence(
+                db, user_id=user_id, title=revision.title, note_id=note_id
+            ):
+                raise ValueError(
+                    f"A revision titled '{revision.title}' already exists for this note."
+                )
 
             note = await db.scalar(
                 select(note_models.Note)
@@ -211,6 +215,7 @@ async def create_revision(
     except IntegrityError as e:
         await db.rollback()
         raise ValueError("Concurrent revision creation conflict; please retry.") from e
+
 
 async def update_revision(
     db: AsyncSession,
@@ -325,13 +330,15 @@ async def restore_revision(
     note_tag_ids = {t.id for t in (note.tags or [])}
 
     if (
-            (rev.title or "").strip() == (note.title or "").strip()
-            and (rev.content_md or "") == (note.content_md or "")
-            and bool(getattr(rev, "is_public", note.is_public)) == bool(note.is_public)
-            and getattr(rev, "folder_id", note.folder_id) == note.folder_id
-            and rev_tag_ids == note_tag_ids
+        (rev.title or "").strip() == (note.title or "").strip()
+        and (rev.content_md or "") == (note.content_md or "")
+        and bool(getattr(rev, "is_public", note.is_public)) == bool(note.is_public)
+        and getattr(rev, "folder_id", note.folder_id) == note.folder_id
+        and rev_tag_ids == note_tag_ids
     ):
-        raise ValueError("Revision is identical to the current note; nothing to restore.")
+        raise ValueError(
+            "Revision is identical to the current note; nothing to restore."
+        )
 
     try:
         # bump note version & update fields

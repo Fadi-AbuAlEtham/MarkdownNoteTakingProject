@@ -56,6 +56,30 @@ async def get_all_active_folders(
     return await folder_service.get_all_active_folders(db, current_user_id, skip, limit)
 
 
+@router.get(
+    "{folder_id}/notes/",
+    response_model=folder_schema.FolderWithNotesResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_active_notes_in_folder(
+    folder_id: Annotated[
+        int, Path(title="The ID of the folder to get the notes from", gt=0)
+    ],
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id),
+):
+    """
+    Get all active notes in folder.
+    :param folder_id: Target folder ID.
+    :param db: Async SQLAlchemy session
+    :param current_user_id: User ID
+    :return: List of all active notes in a folder for the current user
+    """
+    return await folder_service.get_active_notes_in_folder(
+        db, user_id=current_user_id, folder_id=folder_id
+    )
+
+
 @router.post(
     "/",
     response_model=folder_schema.FolderResponse,

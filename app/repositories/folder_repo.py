@@ -3,9 +3,9 @@ from datetime import datetime, timezone
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, exists, func, update
-from sqlalchemy.orm import aliased, selectinload, load_only
+from sqlalchemy.orm import aliased, selectinload, load_only, with_loader_criteria
 
-from ..models import folder as models
+from ..models import folder as models, note as note_model
 from ..schemas import folder as schemas
 
 """
@@ -93,6 +93,39 @@ async def get_all_active_folders(db: AsyncSession, user_id: int, skip: int, limi
     )
     result = await db.execute(_with_folder_graph(stmt))
     return result.scalars().all()
+
+
+async def get_active_notes_in_folder(db: AsyncSession, user_id: int, folder_id: int):
+    """
+    Fetch active notes in folder.
+    :param db: Async SQLAlchemy session.
+    :param user_id: Target user ID.
+    :param folder_id: Target folder ID.
+    :return: List of active notes, or None if not found or soft-deleted.
+    """
+    stmt = (
+        select(models.Folder)
+        .where(
+            models.Folder.id == folder_id,
+            models.Folder.user_id == user_id,
+            models.Folder.deleted_at.is_(None),
+        )
+        .options(
+            selectinload(models.Folder.notes).options(
+                selectinload(note_model.Note.tags)
+            ),
+            with_loader_criteria(
+                note_model.Note,
+                note_model.Note.deleted_at.is_(None),
+                include_aliases=True,
+            ),
+        )
+    )
+    folder = await db.scalar(stmt)
+    if not folder:
+        raise ValueError("Folder not found")
+
+    return folder
 
 
 async def folder_exists_by_title(db: AsyncSession, user_id: int, title: str):
