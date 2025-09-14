@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from app.models.grammar import GrammarAudit, GrammarIssue
 
+
 async def create_audit_with_issues(
     db: AsyncSession,
     revision_id: int,
@@ -19,7 +20,7 @@ async def create_audit_with_issues(
         issue_count=len(raw_issues),
     )
     db.add(audit)
-    await db.flush()  # get audit.id
+    await db.flush()
 
     issues = [
         GrammarIssue(
@@ -41,6 +42,7 @@ async def create_audit_with_issues(
     await db.refresh(audit)
     return audit
 
+
 async def get_latest_audit(db: AsyncSession, revision_id: int) -> GrammarAudit | None:
     stmt = (
         select(GrammarAudit)
@@ -50,7 +52,10 @@ async def get_latest_audit(db: AsyncSession, revision_id: int) -> GrammarAudit |
     )
     return (await db.execute(stmt)).scalar_one_or_none()
 
-async def get_issues_by_ids(db: AsyncSession, issue_ids: List[int]) -> List[GrammarIssue]:
+
+async def get_issues_by_ids(
+    db: AsyncSession, issue_ids: List[int]
+) -> List[GrammarIssue]:
     if not issue_ids:
         return []
     stmt = select(GrammarIssue).where(GrammarIssue.id.in_(issue_ids))

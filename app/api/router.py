@@ -6,6 +6,7 @@ from app.controllers.tag_controller import router as tag_router
 from app.controllers.note_controller import router as note_router
 from app.controllers.issue_controller import router as issue_router
 from app.controllers.revision_controller import router as revision_router
+from app.controllers.grammar_controller import router as grammar_router
 
 api = APIRouter()
 api.include_router(auth_router)
@@ -15,3 +16,4 @@ api.include_router(tag_router)
 api.include_router(note_router)
 api.include_router(issue_router)
 api.include_router(revision_router)
+api.include_router(grammar_router)

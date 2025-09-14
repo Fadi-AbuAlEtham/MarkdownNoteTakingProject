@@ -8,6 +8,7 @@ import app.models.folder  # noqa: F401
 import app.models.note  # noqa: F401
 import app.models.revision  # noqa: F401
 import app.models.issue  # noqa: F401
+import app.models.grammar  # noqa: F401
 
 DATABASE_URL = "postgresql+asyncpg://postgres:root1234@localhost:5432/markdown_notes"
 engine = create_async_engine(DATABASE_URL, echo=True, future=True, pool_pre_ping=True)

@@ -19,10 +19,10 @@ class LanguageToolProvider(GrammarProvider):
         self,
         base_url: str = "https://api.languagetool.org",
         *,
-        api_key: Optional[str] = None,        # sent as form field "apiKey"
-        auth_header: Optional[str] = None,    # e.g., "Bearer <token>"
+        api_key: Optional[str] = None,  # sent as form field "apiKey"
+        auth_header: Optional[str] = None,  # e.g., "Bearer <token>"
         timeout: float = 15.0,
-        level: str = "default",               # "default" | "picky"
+        level: str = "default",  # "default" | "picky"
         enabled_categories: Optional[List[str]] = None,
         disabled_categories: Optional[List[str]] = None,
         enabled_rules: Optional[List[str]] = None,
@@ -65,7 +65,7 @@ class LanguageToolProvider(GrammarProvider):
         data: Dict[str, Any] = {
             "text": text,
             "language": language,
-            "level": self.level,          # "default" or "picky"
+            "level": self.level or "picky",
             "enabledOnly": "false",
         }
         if self.api_key:
@@ -92,23 +92,27 @@ class LanguageToolProvider(GrammarProvider):
             length = int(m.get("length", 0))
             rule = m.get("rule") or {}
             rule_cat = rule.get("category") or {}
-            replacements = [r.get("value") for r in (m.get("replacements") or []) if r.get("value")]
+            replacements = [
+                r.get("value") for r in (m.get("replacements") or []) if r.get("value")
+            ]
 
             # Safe slice for "original"
             try:
-                original = text[start:start + length]
+                original = text[start : start + length]
             except Exception:
                 original = ""
 
-            out.append({
-                "start": start,
-                "length": length,
-                "message": m.get("message", ""),
-                "rule_id": rule.get("id"),
-                "category": rule_cat.get("id") or rule_cat.get("name"),
-                "severity": self._severity(rule.get("issueType")),
-                "original": original,
-                "replacements": replacements,
-            })
+            out.append(
+                {
+                    "start": start,
+                    "length": length,
+                    "message": m.get("message", ""),
+                    "rule_id": rule.get("id"),
+                    "category": rule_cat.get("id") or rule_cat.get("name"),
+                    "severity": self._severity(rule.get("issueType")),
+                    "original": original,
+                    "replacements": replacements,
+                }
+            )
 
         return out

@@ -26,6 +26,7 @@ class Settings(BaseSettings):
         "extra": "ignore",
     }
 
+
 class GrammarSettings(BaseSettings):
     LT_BASE_URL: str = "https://api.languagetool.org"
     LT_API_KEY: Optional[str] = None
@@ -34,5 +35,6 @@ class GrammarSettings(BaseSettings):
 
     class Config:
         env_file = ".env"
+
 
 settings = Settings()

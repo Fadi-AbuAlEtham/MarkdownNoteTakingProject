@@ -132,23 +132,23 @@ async def get_revision_by_id_and_user_note(
 
 
 async def check_revision_existence(
-    db: AsyncSession, user_id: int, title: str, note_id: int
+    db: AsyncSession, user_id: int, note_id: int, version: int
 ):
     """
     Check if revision exists for certain note and user
     :param db: Async SQLAlchemy session
     :param user_id: User ID
-    :param title: Revision title
     :param note_id: Revision note ID
+    :param version: target version
     :return: True if revision exists for this note; otherwise False.
     """
 
     stmt = select(
         exists()
         .where(rev_models.NoteRevision.user_id == user_id)
-        .where(rev_models.NoteRevision.title == title.strip())
         .where(rev_models.NoteRevision.note_id == note_id)
         .where(rev_models.NoteRevision.deleted_at.is_(None))
+        .where(rev_models.NoteRevision.version == version)
     )
     return await db.scalar(stmt)
 
@@ -167,13 +167,6 @@ async def create_revision(
 
     try:
         async with db.begin_nested():
-            if await check_revision_existence(
-                db, user_id=user_id, title=revision.title, note_id=note_id
-            ):
-                raise ValueError(
-                    f"A revision titled '{revision.title}' already exists for this note."
-                )
-
             note = await db.scalar(
                 select(note_models.Note)
                 .options(selectinload(note_models.Note.tags))
@@ -198,12 +191,14 @@ async def create_revision(
                 raise ValueError("Note not found or not accessible")
             new_version: int = int(row[0])
 
-            payload = revision.model_dump(exclude={"version", "created_by", "note_id"})
+            payload = revision.model_dump(
+                exclude={"version", "created_by", "note_id", "tag_ids"},  # <— add this
+                exclude_none=True,
+                exclude_defaults=True,
+            )
+
             db_rev = rev_models.NoteRevision(
-                **payload,
-                note_id=note_id,
-                user_id=user_id,
-                version=new_version,
+                **payload, note_id=note_id, user_id=user_id, version=new_version
             )
             db_rev.tags = list(note.tags)
             db.add(db_rev)
