@@ -102,6 +102,7 @@ async def get_revision_etag(
     headers = {"ETag": data["etag"], "Cache-Control": "private, must-revalidate"}
     return JSONResponse(content=jsonable_encoder(EtagOut(**data)), headers=headers)
 
+
 def _strip_etag(s: str | None) -> str | None:
     if not s:
         return None
@@ -109,6 +110,7 @@ def _strip_etag(s: str | None) -> str | None:
     if s.startswith("W/"):  # treat weak tags as strong for this check
         s = s[2:]
     return s.strip('"')
+
 
 @router.get("/notes/{note_id}/revisions/{revision_id}/render-by-etag")
 async def render_revision_by_etag(
