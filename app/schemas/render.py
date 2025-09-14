@@ -9,3 +9,11 @@ class RenderOut(BaseModel):
     html: str
     etag: str
     last_modified: datetime | None = None
+
+
+class EtagOut(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+    note_id: int
+    revision_id: int
+    etag: str
+    last_modified: datetime | None = None
