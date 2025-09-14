@@ -3,6 +3,7 @@ from app.repositories import revision_repo
 from app.core.utils.markdown_render import render_sanitized_html
 from app.core.utils.http_cache import compute_etag
 
+
 async def render_revision(
     db: AsyncSession, user_id: int, note_id: int, revision_id: int
 ) -> dict:

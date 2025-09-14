@@ -8,12 +8,14 @@ from app.core.utils.http_cache import etag_matches, last_modified_header
 
 router = APIRouter(prefix="/revisions", tags=["Rendered Content"])
 
+
 def _negotiate(accept: str | None) -> str:
     accept = (accept or "*/*").lower()
     for t in ("application/json", "text/html", "text/plain", "text/markdown", "*/*"):
         if t in accept:
             return t if t != "*/*" else "text/html"
     return "text/html"
+
 
 @router.get("/notes/{note_id}/revisions/{revision_id}/render")
 async def render_revision(
@@ -32,10 +34,13 @@ async def render_revision(
 
     etag = data["etag"]
     if etag_matches(request.headers.get("if-none-match"), etag):
-        return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers={
-            "ETag": etag,
-            "Vary": "Accept",
-        })
+        return Response(
+            status_code=status.HTTP_304_NOT_MODIFIED,
+            headers={
+                "ETag": etag,
+                "Vary": "Accept",
+            },
+        )
 
     ctype = _negotiate(request.headers.get("accept"))
     headers = {
