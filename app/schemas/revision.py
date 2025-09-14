@@ -30,8 +30,8 @@ class BaseRevision(BaseModel):
     title: Annotated[Title, Field(description="Revision title")]
     content_md: Annotated[Markdown, Field(description="Markdown content")]
     is_public: bool = Field(description="Whether the revision is public")
-    folder_id: int = Field(description="Folder ID", gt=0)
-    tag_ids: List[int] = Field(default_factory=list, description="Tag IDs")
+    folder_id: Optional[int] = Field(default=None, description="Folder ID (nullable)")
+    tag_ids: Optional[List[int]] = Field(default_factory=list, description="Tag IDs")
 
     @field_validator("version")
     def version_positive(cls, v: int) -> int:
@@ -85,6 +85,7 @@ class UpdateRevision(BaseModel):
     content_md: Optional[Markdown] = None
     is_public: Optional[bool] = None
     folder_id: Optional[int] = None
+    tag_ids: Optional[List[int]] = None
 
     @field_validator("title", mode="before")
     def clean_title(cls, v: Optional[str]) -> Optional[str]:

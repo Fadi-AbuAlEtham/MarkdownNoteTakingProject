@@ -194,13 +194,16 @@ async def create_note(db: AsyncSession, user_id: int, note: schemas.CreateNote):
     db_note = models.Note(**payload)
     db.add(db_note)
 
+    tag_objs = []
     if valid_tag_ids:
         tag_rows = await db.execute(select(Tag).where(Tag.id.in_(valid_tag_ids)))
-        db_note.tags = list(tag_rows.scalars().all())
+        tag_objs = list(tag_rows.scalars().all())
+        db_note.tags = tag_objs
+    else:
+        db_note.tags = []
 
     try:
         await db.flush()
-
         db_note.version = 1
 
         init_rev = rev_models.NoteRevision(
@@ -211,13 +214,14 @@ async def create_note(db: AsyncSession, user_id: int, note: schemas.CreateNote):
             content_md=db_note.content_md,
             folder_id=db_note.folder_id,
         )
-        init_rev.tags = list(note.tags)
+        init_rev.tags = tag_objs
         db.add(init_rev)
 
         await db.commit()
     except IntegrityError:
         await db.rollback()
         raise ValueError(f"A note named '{note.title}' already exists.")
+
     await db.refresh(db_note)
     return db_note, ignored_tag_ids
 
