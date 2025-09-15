@@ -60,33 +60,7 @@ app/
 - PostgreSQL 14+ running locally (or a cloud instance)  
 - A Gemini API Key (free): https://aistudio.google.com/app/apikey  
 
----
 
-## Getting Started
-
-```bash
-# 1) Clone & enter
-git clone https://github.com/Fadi-AbuAlEtham/MarkdownNoteTakingProject.git
-cd MarkdownNoteTakingProject
-
-# 2) Create env from example
-cp .env.example .env
-# edit values as needed (DB URL, JWT SECRET, Gemini key, etc.)
-
-# 3) Create and activate venv
-python -m venv .venv
-source .venv/bin/activate      # on Windows: .venv\Scripts\activate
-
-# 4) Install deps
-pip install -r requirements.txt   
-
-# 5) Ensure PostgreSQL database exists
-# createdb markdown_notes  (or create via GUI / psql)
-
-# 6) Run the app
-uvicorn app.main:app --reload
-# App on http://localhost:8000
-```
 ---
 
 ##  Configuration
@@ -127,3 +101,31 @@ REDIS_HOST=redis
 REDIS_PORT=6379
 REDIS_DB=0
 CACHE_TTL=90
+```
+---
+
+## Getting Started
+
+```bash
+# 1) Clone & enter
+git clone https://github.com/Fadi-AbuAlEtham/MarkdownNoteTakingProject.git
+cd MarkdownNoteTakingProject
+
+# 2) Create env from example
+cp .env.example .env
+# edit values as needed (DB URL, JWT SECRET, Gemini key, etc.)
+
+# 3) Create and activate venv
+python -m venv .venv
+source .venv/bin/activate      # on Windows: .venv\Scripts\activate
+
+# 4) Install deps
+pip install -r requirements.txt   
+
+# 5) Ensure PostgreSQL database exists
+createdb markdown_notes         # (or create via GUI / psql)
+
+# 6) Run the app
+uvicorn app.main:app --reload
+# App on http://localhost:8000
+```
