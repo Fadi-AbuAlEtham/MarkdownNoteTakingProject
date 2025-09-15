@@ -189,18 +189,18 @@ async def create_note(db: AsyncSession, user_id: int, note: schemas.CreateNote):
     ):
         raise ValueError(f"This title: {note.title} exists from before.")
 
-    payload = note.model_dump(exclude={"tag_ids"})
-    payload["user_id"] = user_id
-    db_note = models.Note(**payload)
-    db.add(db_note)
-
     tag_objs = []
     if valid_tag_ids:
-        tag_rows = await db.execute(select(Tag).where(Tag.id.in_(valid_tag_ids)))
-        tag_objs = list(tag_rows.scalars().all())
-        db_note.tags = tag_objs
-    else:
-        db_note.tags = []
+        res = await db.execute(select(Tag).where(Tag.id.in_(valid_tag_ids)))
+        tag_objs = list(res.scalars().all())
+
+    payload = note.model_dump(exclude={"tag_ids"})
+    payload["user_id"] = user_id
+
+    db_note = models.Note(**payload)
+    db_note.tags = tag_objs
+
+    db.add(db_note)
 
     try:
         await db.flush()

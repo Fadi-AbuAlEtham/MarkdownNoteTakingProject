@@ -18,10 +18,13 @@ def get_provider() -> SummarizeProvider:
 
 
 @router.post("/summarize/notes/{note_id}", response_model=gs.SummarizeOut)
-async def summarize_note(note_id: int, body: gs.SummarizeRequest,
-                         db: AsyncSession = Depends(get_db),
-                         current_user_id: int = Depends(get_current_user_id),
-                         provider: SummarizeProvider = Depends(get_provider)):
+async def summarize_note(
+    note_id: int,
+    body: gs.SummarizeRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user_id: int = Depends(get_current_user_id),
+    provider: SummarizeProvider = Depends(get_provider),
+):
     res = await summarize_service.summarize_note(
         db=db, user_id=current_user_id, note_id=note_id, req=body, provider=provider
     )
@@ -35,6 +38,7 @@ async def summarize_note(note_id: int, body: gs.SummarizeRequest,
         scope="note",
         scope_id=note_id,
     )
+
 
 @router.post(
     "/folders/{folder_id}", response_model=SummarizeOut, status_code=status.HTTP_200_OK

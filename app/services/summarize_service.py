@@ -34,7 +34,12 @@ async def summarize_note(db, user_id: int, note_id: int, req, provider):
     # Build a better source text for the LLM
     title_block = f"# {note.title}".strip()
     body_block = (note.content_md or "").strip()
-    tags_str = ", ".join(getattr(t, "name", str(getattr(t, "id", ""))) for t in (note.tags or [])) or "none"
+    tags_str = (
+        ", ".join(
+            getattr(t, "name", str(getattr(t, "id", ""))) for t in (note.tags or [])
+        )
+        or "none"
+    )
     meta_block = (
         "-----\n"
         "Meta:\n"

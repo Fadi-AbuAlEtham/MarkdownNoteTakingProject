@@ -3,6 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 from pydantic import AliasChoices
 
+
 class Settings(BaseSettings):
     APP_NAME: str = "Note Markdown API"
     DATABASE_URL: str = Field(..., description="Async DB URL")
@@ -20,6 +21,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+
 class GrammarSettings(BaseSettings):
     BASE_URL: str = Field("https://api.languagetool.org")
     API_KEY: Optional[str] = None
@@ -28,10 +30,15 @@ class GrammarSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="LT_", env_file=".env", extra="ignore")
 
+
 class SummarizeSettings(BaseSettings):
-    GEMINI_API_KEY: str = Field(default="", validation_alias=AliasChoices("GEMINI_API_KEY", "GOOGLE_API_KEY"))
+    GEMINI_API_KEY: str = Field(
+        default="", validation_alias=AliasChoices("GEMINI_API_KEY", "GOOGLE_API_KEY")
+    )
     GEMINI_MODEL: str = "gemini-1.5-flash"
     MAX_CHARS_PER_CALL: int = 12000
     LANGUAGE: str = "en"
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=False)
+    model_config = SettingsConfigDict(
+        env_file=".env", extra="ignore", case_sensitive=False
+    )
