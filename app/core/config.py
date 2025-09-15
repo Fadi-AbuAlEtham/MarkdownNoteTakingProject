@@ -1,20 +1,17 @@
 from typing import Optional
 
-from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic import Field, AliasChoices
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    APP_NAME: str = "Tasks API"
+    APP_NAME: str = "Note Markdown API"
     DATABASE_URL: str = Field(
         default="postgresql+asyncpg://postgres:root1234@localhost:5432/markdown_notes"
     )
     DATABASE_URL_SYNC: str = Field(
         default="postgresql+psycopg2://postgres:root1234@localhost:5432/markdown_notes"
     )
-    # AMQP_URL: str = "amqp://guest:guest@rabbitmq/"
-    # AMQP_EXCHANGE: str = "tasks"
-    # AMQP_EVENT_QUEUE: str = "tasks.events"
     REDIS_HOST: str = "redis"
     REDIS_PORT: int = 6379
     REDIS_DB: int = 0
@@ -28,13 +25,31 @@ class Settings(BaseSettings):
 
 
 class GrammarSettings(BaseSettings):
-    LT_BASE_URL: str = "https://api.languagetool.org"
-    LT_API_KEY: Optional[str] = None
-    LT_AUTH_HEADER: Optional[str] = None
-    LT_LEVEL: str = "default"
+    BASE_URL: str = "https://api.languagetool.org"
+    API_KEY: Optional[str] = None
+    AUTH_HEADER: Optional[str] = None
+    LEVEL: str = "default"
 
-    class Config:
-        env_file = ".env"
+    model_config = SettingsConfigDict(
+        env_prefix="LT_",
+        extra="ignore",
+        env_file=".env",
+        case_sensitive=False,
+    )
+
+
+class SummarizeSettings(BaseSettings):
+    GEMINI_API_KEY: str = Field(
+        default="",
+        validation_alias=AliasChoices("GEMINI_API_KEY", "GOOGLE_API_KEY"),
+    )
+    GEMINI_MODEL: str = "gemini-1.5-flash"
+    MAX_CHARS_PER_CALL: int = 12000
+    LANGUAGE: str = "en"
+
+    model_config = SettingsConfigDict(
+        env_file=".env", extra="ignore", case_sensitive=False
+    )
 
 
 settings = Settings()
