@@ -10,12 +10,11 @@ from app.core.config import GrammarSettings
 from app.services.providers.languagetool import LanguageToolProvider
 
 _settings = GrammarSettings()
-
-_provider: GrammarProvider = LanguageToolProvider(
-    base_url=_settings.LT_BASE_URL,
-    api_key=_settings.LT_API_KEY,
-    auth_header=_settings.LT_AUTH_HEADER,
-    level=_settings.LT_LEVEL,
+_provider = LanguageToolProvider(
+    base_url=_settings.BASE_URL,
+    api_key=_settings.API_KEY,
+    auth_header=_settings.AUTH_HEADER,
+    level=_settings.LEVEL,
 )
 
 
