@@ -1,10 +1,11 @@
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 from jose import jwt
 
-SECRET_KEY = "EXALT_SUMMER_TRAINING"
-ALGORITHM = "HS256"
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = os.getenv("ALGORITHM")
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 

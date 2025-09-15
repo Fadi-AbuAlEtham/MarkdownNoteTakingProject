@@ -1,3 +1,5 @@
+import os
+
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
@@ -10,7 +12,7 @@ import app.models.revision  # noqa: F401
 import app.models.issue  # noqa: F401
 import app.models.grammar  # noqa: F401
 
-DATABASE_URL = "postgresql+asyncpg://postgres:root1234@localhost:5432/markdown_notes"
+DATABASE_URL = os.getenv("DATABASE_URL")
 engine = create_async_engine(DATABASE_URL, echo=True, future=True, pool_pre_ping=True)
 
 
