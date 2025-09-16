@@ -1,16 +1,17 @@
 from __future__ import annotations
 
+import os
 from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
+from dotenv import load_dotenv
 
 # --- Load app settings & models ---------------------------------------------
 # Make sure Alembic can import your app package (if needed, tweak sys.path)
 # import os, sys
 # sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
+load_dotenv()
 from app.core.db import Base            # your declarative base
-from app.core.config import settings         # your Pydantic settings with DATABASE_URL
 
 # Import ALL models so they register on Base.metadata
 import app.models.user                  # noqa: F401
@@ -27,7 +28,7 @@ import app.models.note_tag              # noqa: F401
 config = context.config
 
 # Ensure Alembic uses the same DB URL as your app
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL_SYNC)
+config.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL_SYNC"))
 
 # Logging
 if config.config_file_name is not None:
