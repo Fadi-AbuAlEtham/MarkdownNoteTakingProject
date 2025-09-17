@@ -1,14 +1,19 @@
-from typing import Annotated, Optional
+import os
+from typing import Annotated
 
-from fastapi import Depends, Header, HTTPException, status, Security
+from fastapi import Depends, HTTPException, status, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
+from jose import jwt, JWTError
 
 from app.core.db import get_db
-from app.core.jwt import decode_access_token
-from app.repositories import user_repo
 from app.models import user as models
+from app.repositories.user_repo import UserRepository
+from app.services.user_service import UserService
+
+security = HTTPBearer(auto_error=False)
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
 
 unauth_exc = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -16,36 +21,43 @@ unauth_exc = HTTPException(
 )
 
 
-def _extract_bearer_token(authorization: Optional[str]) -> str:
-    if not authorization:
-        raise unauth_exc
-    scheme, _, param = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not param:
-        raise unauth_exc
-    return param
+def get_user_repo(db: AsyncSession = Depends(get_db)) -> UserRepository:
+    return UserRepository(db)
 
 
-security = HTTPBearer(auto_error=False)
+def get_user_service(repo: UserRepository = Depends(get_user_repo)) -> UserService:
+    return UserService(repo)
 
 
 async def get_current_user(
-    creds: HTTPAuthorizationCredentials = Security(security),
-    db: AsyncSession = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Security(security),
+    user_repo: UserRepository = Depends(get_user_repo),
 ) -> models.User:
-    if not creds or creds.scheme.lower() != "bearer":
-        raise unauth_exc
-    token = creds.credentials
-    try:
-        payload = decode_access_token(token)
-        user_id = int(payload.get("sub"))
-    except (JWTError, ValueError, TypeError):
+    """
+    Extract Bearer token, decode JWT, fetch the active user.
+    Raises 401 on any problem (missing token, bad token, user not found).
+    """
+    if credentials is None or not credentials.credentials:
         raise unauth_exc
 
-    user = await user_repo.get_user_by_id(db, user_id)
+    if not SECRET_KEY:
+        raise HTTPException(status_code=500, detail="Server auth misconfigured")
+
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        sub = payload.get("sub")
+        user_id = int(sub)
+    except (JWTError, ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
+        )
+
+    user = await user_repo.get_by_id(user_id)
     if not user:
-        raise unauth_exc
-    if getattr(user, "is_active", True) is False:
-        raise HTTPException(status_code=403, detail="Inactive user")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
+        )
     return user
 
 
@@ -59,8 +71,12 @@ async def allow_self_or_admin(
     target_user_id: int,
     user: Annotated[models.User, Depends(get_current_user)],
 ) -> None:
+    """
+    Dependency to guard routes that allow either the resource owner (self)
+    or an admin to proceed. Raises 403 otherwise.
+    """
     is_admin = (
         bool(getattr(user, "is_admin", False)) or getattr(user, "role", None) == "admin"
     )
     if user.id != target_user_id and not is_admin:
-        raise HTTPException(status_code=403, detail="Forbidden")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")

@@ -7,6 +7,7 @@ from app.core.db import get_db
 from app.core.jwt import create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
 from app.repositories import user_repo
 from app.core.security import verify_password
+from app.repositories.user_repo import UserRepository
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -25,7 +26,8 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
     :raises HTTPException: If the login fails.
     :return: The login token.
     """
-    user = await user_repo.get_user_by_username(db, body.username)
+    user_repo = UserRepository(db)
+    user = await user_repo.get_by_username(body.username)
     if not user or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Incorrect username or password")
     if getattr(user, "is_active", True) is False:
