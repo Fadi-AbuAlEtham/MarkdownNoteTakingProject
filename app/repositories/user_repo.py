@@ -94,14 +94,16 @@ class UserRepository:
         )
         return bool(await self.db.scalar(stmt))
 
-    async def create_user(self, obj: models.User):
+    async def create_user(self, user: models.User):
         """Create a user. Expects `data` to include `password_hash` (not plain password).
-        :param obj: user to be inserted.
+        :param user: user to be inserted.
         :return: user object created.
         """
-        self.db.add(obj)
+        self.db.add(user)
         await self.db.flush()
-        return obj
+        await self.db.commit()
+        await self.db.refresh(user)
+        return user
 
     async def update(self, user: models.User, data: Mapping[str, Any]):
         """Partial update a user
@@ -114,21 +116,24 @@ class UserRepository:
         for k, v in data.items():
             setattr(user, k, v)
         await self.db.flush()
+        await self.db.commit()
+        await self.db.refresh(user)
         return user
 
     async def soft_delete(self, user: models.User):
-        """Set deleted_at / is_active flag. Returns None if not found."""
-        # user = await self.get_by_id_including_deleted(user_id)
-        # if user is None:
-        #     return None
+        """
+        Soft delete a user.
+        :param user: user to be deleted.
+        :return: soft-deleted user.
+        """
         user.deleted_at = datetime.now(timezone.utc)
         user.is_active = False
         await self.db.flush()
+        await self.db.commit()
+        await self.db.refresh(user)
         return user
 
-    async def active_email_exists(
-        self, email: str, *, user_id: int, exclude_user_id: int
-    ):
+    async def active_email_exists(self, email: str, *, exclude_user_id: int):
         """
         Return True if an ACTIVE user (deleted_at IS NULL) exists with this email.
         Optionally exclude a specific user id.
@@ -141,9 +146,7 @@ class UserRepository:
             stmt = stmt.where(self.model.id != exclude_user_id)
         return bool(await self.db.scalar(stmt))
 
-    async def active_username_exists(
-        self, username: str, *, user_id: int, exclude_user_id: int
-    ):
+    async def active_username_exists(self, username: str, *, exclude_user_id: int):
         """
         Return True if an ACTIVE user (deleted_at IS NULL) exists with this username.
         Optionally exclude a specific user id.

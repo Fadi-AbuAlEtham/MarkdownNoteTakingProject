@@ -1,4 +1,3 @@
-# app/services/providers/gemini_summarizer.py
 from __future__ import annotations
 
 import os
