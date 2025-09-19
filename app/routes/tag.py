@@ -2,12 +2,10 @@ from typing import Annotated, List
 
 from fastapi import APIRouter, Depends, status
 from fastapi.params import Path
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user_id
-from app.core.db import get_db
+from app.api.deps import get_tag_service
 from app.schemas import tag as tag_schema, note_tag as note_tag_schema
-from app.services import tag as tag_service
+from app.services.tag import TagService
 
 router = APIRouter(prefix="/tags", tags=["tags"])
 
@@ -19,19 +17,15 @@ router = APIRouter(prefix="/tags", tags=["tags"])
 )
 async def get_tag_by_id(
     tag_id: Annotated[int, Path(title="The ID of the tag to get", gt=0)],
-    db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id),
+    tag_service: TagService = Depends(get_tag_service),
 ):
     """
     Get a tag by ID.
     :param tag_id: Target tag ID.
-    :param db: Async SQLAlchemy session.
-    :param current_user_id: The ID of the current user.
+    :param tag_service: Tag service to use.
     :return: The target tag.
     """
-    return await tag_service.get_tag_by_id_and_user(
-        db, tag_id=tag_id, user_id=current_user_id
-    )
+    return await tag_service.get_tag_by_id_and_user(tag_id=tag_id)
 
 
 @router.get(
@@ -42,33 +36,29 @@ async def get_tag_by_id(
 async def get_all_active_tags(
     skip: int = 0,
     limit: int = 100,
-    db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id),
+    tag_service: TagService = Depends(get_tag_service),
 ):
     """
     Get all active tags.
     :param skip: Starting offset
     :param limit: ending offset
-    :param db: Async SQLAlchemy session
-    :param current_user_id: User ID
     :return: List of all active tags for the current user
     """
-    return await tag_service.get_all_active_tags(db, current_user_id, skip, limit)
+    return await tag_service.get_all_active_tags(skip, limit)
 
 
-@router.get(
-    "/{tag_id}/notes",
-    response_model=note_tag_schema.TagWithNotesResponse,
-    status_code=status.HTTP_200_OK,
-)
-async def get_notes_for_tag(
-    tag_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id),
-):
-    return await tag_service.get_active_notes_for_tag(
-        db, user_id=current_user_id, tag_id=tag_id
-    )
+# @router.get(
+#     "/{tag_id}/notes",
+#     response_model=note_tag_schema.TagWithNotesResponse,
+#     status_code=status.HTTP_200_OK,
+# )
+# async def get_notes_for_tag(
+#     tag_id: int,
+#     tag_service: TagService = Depends(get_tag_service),
+# ):
+#     return await tag_service.get_active_notes_for_tag(
+#         db, user_id=current_user_id, tag_id=tag_id
+#     )
 
 
 @router.post(
@@ -78,50 +68,39 @@ async def get_notes_for_tag(
 )
 async def create_tag(
     tag: tag_schema.CreateTag,
-    db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id),
+    tag_service: TagService = Depends(get_tag_service),
 ):
     """
     Create a new tag.
-    :param db: Async SQLAlchemy session
-    :param current_user_id: User ID
     :param tag: Pydantic model that holds the new tag payload
     :return: The newly created tag
     """
-    return await tag_service.create_tag(db, user_id=current_user_id, tag_to_create=tag)
+    return await tag_service.create_tag(tag_to_create=tag)
 
 
 @router.put("/{tag_id}", response_model=tag_schema.TagResponse)
 async def update_tag(
     tag: tag_schema.UpdateTag,
     tag_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id),
+    tag_service: TagService = Depends(get_tag_service),
 ):
     """
     Update a tag.
-    :param db: Async SQLAlchemy session
-    :param current_user_id: User ID
     :param tag_id: Target tag id
     :param tag: Pydantic model that holds the new tag payload
     :return: The updated tag
     """
-    return await tag_service.update_tag(
-        db, user_id=current_user_id, tag_id=tag_id, tag_to_update=tag
-    )
+    return await tag_service.update_tag(tag_id=tag_id, tag_to_update=tag)
 
 
 @router.delete("/{tag_id}", response_model=tag_schema.TagResponse)
 async def delete_tag(
     tag_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id),
+    tag_service: TagService = Depends(get_tag_service),
 ):
     """
     Delete a tag.
-    :param db: Async SQLAlchemy session
-    :param current_user_id: User ID
     :param tag_id:  of the tag to delete
     :return: The deleted tag
     """
-    return await tag_service.soft_delete_tag(db, user_id=current_user_id, tag_id=tag_id)
+    return await tag_service.soft_delete_tag(tag_id=tag_id)

@@ -8,7 +8,9 @@ from jose import jwt, JWTError
 
 from app.core.db import get_db
 from app.models import user as models
+from app.repositories.tag import TagRepository
 from app.repositories.user import UserRepository
+from app.services.tag import TagService
 from app.services.user import UserService
 
 security = HTTPBearer(auto_error=False)
@@ -80,3 +82,14 @@ async def allow_self_or_admin(
     )
     if user.id != target_user_id and not is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+
+
+def get_tag_repo(db: AsyncSession = Depends(get_db)) -> TagRepository:
+    return TagRepository(db)
+
+
+def get_tag_service(
+    repo: TagRepository = Depends(get_tag_repo),
+    user_id: int = Depends(get_current_user_id),
+) -> TagService:
+    return TagService(repo, user_id)
