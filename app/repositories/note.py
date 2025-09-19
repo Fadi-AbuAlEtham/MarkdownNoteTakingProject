@@ -10,7 +10,7 @@ from ..models import note as models, revision as rev_models
 from ..models.tag import Tag
 from app.models.tag import note_tags
 from ..schemas import note as schemas
-from ..repositories import folder_repo
+from ..repositories import folder as folder_repo
 
 
 async def get_all_active_notes(

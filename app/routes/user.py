@@ -5,7 +5,7 @@ from fastapi.params import Path, Depends
 
 from app.api.deps import get_user_service
 from app.schemas import user as user_schema
-from app.services.user_service import UserService
+from app.services.user import UserService
 
 router = APIRouter(prefix="/users", tags=["user"])
 

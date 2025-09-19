@@ -2,7 +2,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..schemas import revision as schemas_revision
-from ..repositories import revision_repo
+from ..repositories import revision as revision_repo
 
 
 def to_response_dict(obj) -> dict:
@@ -114,7 +114,6 @@ async def update_revision(
     :param db: Async SQLAlchemy session.
     :param revision_id: Target revision ID.
     :param user_id: Target user ID.
-    :param note_id: Target note ID.
     :param updated_revision: Pydantic model that holds the new revision payload.
     :return: Updated revision_object.
     """

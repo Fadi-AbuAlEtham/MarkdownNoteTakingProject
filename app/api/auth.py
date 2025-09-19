@@ -5,9 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
 from app.core.jwt import create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
-from app.repositories import user_repo
 from app.core.security import verify_password
-from app.repositories.user_repo import UserRepository
+from app.repositories.user import UserRepository
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 

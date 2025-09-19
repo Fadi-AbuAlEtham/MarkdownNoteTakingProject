@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_db
 from app.api.deps import get_current_user_id
 from app.schemas import grammar as gs
-from app.services import grammar_service
+from app.services import grammar as grammar_service
 from app.services.grammar_provider import GrammarProvider
 from app.core.config import GrammarSettings
 from app.services.providers.languagetool import LanguageToolProvider

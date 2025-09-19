@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql.expression import select
 
-from app.repositories import note_repo, folder_repo
+from app.repositories import note as note_repo, folder as folder_repo
 from app.services.summarize_provider import SummarizeProvider
 from app.core.config import SummarizeSettings
 from ..models import note as note_models

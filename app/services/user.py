@@ -4,7 +4,7 @@ from ..core.utils.format_response import to_response_dict
 from ..models.user import User as model_User
 from ..core.security import hash_password
 from ..schemas import user as schemas_user
-from ..repositories.user_repo import UserRepository
+from ..repositories.user import UserRepository
 
 
 class UserService:

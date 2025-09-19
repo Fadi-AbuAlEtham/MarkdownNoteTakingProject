@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_db
 from app.api.deps import get_current_user_id
 from app.schemas.render import RenderOut, EtagOut
-from app.services import render_service
+from app.services import render as render_service
 from app.core.utils.http_cache import etag_matches, last_modified_header
 
 router = APIRouter(prefix="/revisions", tags=["Rendered Content"])

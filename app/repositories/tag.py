@@ -2,8 +2,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, exists, func, update
-from sqlalchemy.orm import aliased
+from sqlalchemy import select, exists
 
 from ..models import tag as models
 from ..schemas import tag as schemas

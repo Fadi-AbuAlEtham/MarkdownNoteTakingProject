@@ -8,8 +8,8 @@ from jose import jwt, JWTError
 
 from app.core.db import get_db
 from app.models import user as models
-from app.repositories.user_repo import UserRepository
-from app.services.user_service import UserService
+from app.repositories.user import UserRepository
+from app.services.user import UserService
 
 security = HTTPBearer(auto_error=False)
 SECRET_KEY = os.getenv("SECRET_KEY")

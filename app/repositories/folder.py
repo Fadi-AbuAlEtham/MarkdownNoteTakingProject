@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, exists, func, update
-from sqlalchemy.orm import aliased, selectinload, load_only, with_loader_criteria
+from sqlalchemy.orm import aliased, selectinload, with_loader_criteria
 
 from ..models import folder as models, note as note_model
 from ..schemas import folder as schemas

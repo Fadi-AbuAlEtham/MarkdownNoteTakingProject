@@ -3,7 +3,7 @@ from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.expression import select
 
-from app.repositories import revision_repo, grammar_repo, note_repo
+from app.repositories import revision as revision_repo, grammar as grammar_repo, note as note_repo
 from app.models.grammar import GrammarIssue
 from app.schemas import grammar as gs, note as note_schemas
 from app.services.grammar_provider import GrammarProvider

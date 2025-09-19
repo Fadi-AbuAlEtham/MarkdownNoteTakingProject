@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.repositories import revision_repo
+from app.repositories import revision as revision_repo
 from app.core.utils.markdown_render import render_sanitized_html
 from app.core.utils.http_cache import compute_etag
 

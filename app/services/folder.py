@@ -2,7 +2,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..schemas import folder as schemas_folder, note as schemas_note
-from ..repositories import folder_repo, note_repo
+from ..repositories import folder as folder_repo, note as note_repo
 
 
 def to_response_dict(obj) -> dict:

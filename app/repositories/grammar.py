@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List, Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select
 from app.models.grammar import GrammarAudit, GrammarIssue
 
 

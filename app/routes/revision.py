@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user_id
 from app.core.db import get_db
 from app.schemas import revision as revision_schema, note as note_schema
-from app.services import revision_service
+from app.services import revision as revision_service
 
 
 router = APIRouter(prefix="/revisions", tags=["revisions"])
