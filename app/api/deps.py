@@ -94,26 +94,16 @@ def get_tag_repo(db: AsyncSession = Depends(get_db)) -> TagRepository:
     return TagRepository(db)
 
 
-def get_tag_service(
-    repo: TagRepository = Depends(get_tag_repo),
-    user_id: int = Depends(get_current_user_id),
-) -> TagService:
-    return TagService(repo, user_id)
-
-
 def get_folder_repo(db: AsyncSession = Depends(get_db)) -> FolderRepository:
     return FolderRepository(db)
 
 
-def get_folder_service(
-    repo: FolderRepository = Depends(get_folder_repo),
-    user_id: int = Depends(get_current_user_id),
-) -> FolderService:
-    return FolderService(repo, user_id)
-
-
 def get_revision_repo(db: AsyncSession = Depends(get_db)) -> RevisionRepository:
     return RevisionRepository(db)
+
+
+def get_note_repo(db: AsyncSession = Depends(get_db)) -> NoteRepository:
+    return NoteRepository(db)
 
 
 def get_revision_service(
@@ -123,8 +113,19 @@ def get_revision_service(
     return RevisionService(repo, user_id)
 
 
-def get_note_repo(db: AsyncSession = Depends(get_db)) -> NoteRepository:
-    return NoteRepository(db)
+def get_tag_service(
+    repo: TagRepository = Depends(get_tag_repo),
+    user_id: int = Depends(get_current_user_id),
+) -> TagService:
+    return TagService(repo, user_id)
+
+
+def get_folder_service(
+    repo: FolderRepository = Depends(get_folder_repo),
+    note_repo: NoteRepository = Depends(get_note_repo),
+    user_id: int = Depends(get_current_user_id),
+) -> FolderService:
+    return FolderService(folder_repo=repo, note_repo=note_repo, user_id=user_id)
 
 
 def get_note_service(
