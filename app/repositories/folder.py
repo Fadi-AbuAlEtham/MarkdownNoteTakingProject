@@ -1,11 +1,15 @@
+from __future__ import annotations
+
 from datetime import datetime, timezone
+from typing import Mapping, Any
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, exists, func, update
-from sqlalchemy.orm import aliased, selectinload, with_loader_criteria
+from sqlalchemy import select, exists, update
+from sqlalchemy.orm import aliased
 
-from ..models import folder as models, note as note_model
+from ..core.utils.format_response import folder_graph_options
+from ..models import folder as models
 from ..schemas import folder as schemas
 
 """
@@ -21,361 +25,192 @@ Async folder repository.
 """
 
 
-def _with_folder_graph(stmt):
-    """
-    Ensure relationships needed by FolderResponse are loaded to avoid
-    lazy I/O during Pydantic serialization.
-    """
-    return stmt.options(
-        selectinload(models.Folder.parent).load_only(
-            models.Folder.id, models.Folder.title
-        ),
-        selectinload(models.Folder.children).load_only(
-            models.Folder.id, models.Folder.title
-        ),
-    )
+class FolderRepository:
+    def __init__(self, db: AsyncSession):
+        self.db = db
 
-
-async def get_folder_by_id(db: AsyncSession, folder_id: int):
-    """
-        Fetch certain folder from its id (only active folders; not soft-deleted)
-    :param
-        db: Async SQLAlchemy session.
-        folder_id: Database primary key.
-    :return:
-        The matching "Folder" instance, or "None" if not found or soft-deleted.
-    """
-    stmt = (
-        select(models.Folder)
-        .where(models.Folder.id == folder_id)
-        .where(models.Folder.deleted_at.is_(None))
-    )
-    result = await db.execute(_with_folder_graph(stmt))
-    return result.scalar_one_or_none()
-
-
-async def get_folder_by_id_and_user(db: AsyncSession, user_id: int, folder_id: int):
-    """
-        Fetch certain folder from its id for a certain user (only active folders; not soft-deleted)
-    :param
-        db: Async SQLAlchemy session.
-        folder_id: Database primary key.
-    :return:
-        The matching "Folder" instance, or "None" if not found or soft-deleted.
-    """
-    stmt = (
-        select(models.Folder)
-        .where(models.Folder.id == folder_id)
-        .where(models.Folder.deleted_at.is_(None))
-        .where(models.Folder.user_id == user_id)
-    )
-    result = await db.execute(_with_folder_graph(stmt))
-    return result.scalar_one_or_none()
-
-
-async def get_all_active_folders(db: AsyncSession, user_id: int, skip: int, limit: int):
-    """
-        Fetch all active folders.
-    :param
-        db: Async SQLAlchemy session.
-        skip: Number of rows to skip (offset).
-        limit: Maximum number of rows to return.
-    :return:
-        All active Folders, or None if not found or soft-deleted.
-    """
-
-    stmt = (
-        select(models.Folder)
-        .where(models.Folder.deleted_at.is_(None))
-        .where(models.Folder.user_id == user_id)
-        .offset(skip)
-        .limit(limit)
-    )
-    result = await db.execute(_with_folder_graph(stmt))
-    return result.scalars().all()
-
-
-async def get_active_notes_in_folder(db: AsyncSession, user_id: int, folder_id: int):
-    """
-    Fetch active notes in folder.
-    :param db: Async SQLAlchemy session.
-    :param user_id: Target user ID.
-    :param folder_id: Target folder ID.
-    :return: List of active notes, or None if not found or soft-deleted.
-    """
-    stmt = (
-        select(models.Folder)
-        .where(
-            models.Folder.id == folder_id,
-            models.Folder.user_id == user_id,
-            models.Folder.deleted_at.is_(None),
+    async def get_folder_by_id(self, folder_id: int):
+        """
+            Fetch certain folder from its id (only active folders; not soft-deleted)
+        :param
+            folder_id: Database primary key.
+        :return:
+            The matching "Folder" instance, or "None" if not found or soft-deleted.
+        """
+        stmt = (
+            select(models.Folder)
+            .where(models.Folder.id == folder_id)
+            .where(models.Folder.deleted_at.is_(None))
         )
-        .options(
-            selectinload(models.Folder.notes).options(
-                selectinload(note_model.Note.tags)
-            ),
-            with_loader_criteria(
-                note_model.Note,
-                note_model.Note.deleted_at.is_(None),
-                include_aliases=True,
-            ),
+        result = await self.db.execute(with_folder_graph(stmt))
+        return result.scalar_one_or_none()
+
+    async def get_folder_by_id_and_user(self, user_id: int, folder_id: int):
+        """
+            Fetch certain folder from its id for a certain user (only active folders; not soft-deleted)
+        :param
+            folder_id: Database primary key.
+        :return:
+            The matching "Folder" instance, or "None" if not found or soft-deleted.
+        """
+        stmt = (
+            select(models.Folder)
+            .where(models.Folder.id == folder_id)
+            .where(models.Folder.deleted_at.is_(None))
+            .where(models.Folder.user_id == user_id)
         )
-    )
-    folder = await db.scalar(stmt)
-    if not folder:
-        raise ValueError("Folder not found")
+        result = await self.db.execute(with_folder_graph(stmt))
+        return result.scalar_one_or_none()
 
-    return folder
+    async def get_all_active_folders(self, user_id: int, skip: int, limit: int):
+        """
+            Fetch all active folders.
+        :param
+            skip: Number of rows to skip (offset).
+            limit: Maximum number of rows to return.
+        :return:
+            All active Folders, or None if not found or soft-deleted.
+        """
 
-
-async def folder_exists_by_title(db: AsyncSession, user_id: int, title: str):
-    """
-        Check folder existence by title for a certain user by its id
-
-    :param
-        db: Async SQLAlchemy session.
-        user_id: Target user's ID.
-        title: Target folder's title
-
-    :return:
-        True if another title exists for the same user; otherwise False.
-
-    """
-    title_edited = title.strip()
-    stmt = select(
-        exists().where(
-            models.Folder.user_id == user_id,
-            models.Folder.deleted_at.is_(None),
-            func.lower(models.Folder.title.concat()) == title_edited.lower(),
+        stmt = (
+            select(models.Folder)
+            .where(models.Folder.deleted_at.is_(None))
+            .where(models.Folder.user_id == user_id)
+            .offset(skip)
+            .limit(limit)
         )
-    )
-    return await db.scalar(stmt)
+        result = await self.db.execute(with_folder_graph(stmt))
+        return result.scalars().all()
 
+    async def folder_exists_by_title(self, user_id: int, title: str):
+        """
+            Check folder existence by title for a certain user by its id
 
-async def folder_exists_by_title_at_level(
-    db: AsyncSession, user_id: int, parent_id: int | None, title: str
-) -> bool:
-    """
-        Check folder title existence within the same level for a certain user.
-    :param
-        db: Async SQLAlchemy session.
-        user_id: Target user ID.
-        parent_id: Target parent level ID.
-        title: Target folder title.
-    :return:
-        Returns true if a title exist within the same level for the same user or false if None.
-    """
+        :param
+            user_id: Target user's ID.
+            title: Target folder's title
 
-    title_edited = title.strip()
-    conditions = [
-        models.Folder.user_id == user_id,
-        models.Folder.deleted_at.is_(None),
-        models.Folder.title == title_edited,
-    ]
-    if parent_id is None:
-        conditions.append(models.Folder.parent_id.is_(None))
-    else:
-        conditions.append(models.Folder.parent_id == parent_id)
+        :return:
+            True if another title exists for the same user; otherwise False.
 
-    stmt = select(exists().where(*conditions))
-    return await db.scalar(stmt)
-
-
-async def get_folder_by_id_including_deleted(db: AsyncSession, folder_id: int):
-    """Fetch a folder by ID, including soft-deleted rows.
-
-    Args:
-        db: Async SQLAlchemy session.
-        folder_id: Database primary key.
-
-    Returns:
-        The matching "Folder" instance or "None" if not found.
-    """
-    result = await db.execute(
-        select(models.Folder).where(models.Folder.id == folder_id)
-    )
-    return result.scalar_one_or_none()
-
-
-async def create_folder(db: AsyncSession, user_id: int, folder: schemas.FolderCreate):
-    """
-        Create new folder with distinct title for a certain user.
-    :param
-        db: Async SQLAlchemy session.
-        user_id: Target user ID.
-        folder:  Pydantic payload containing folder's fields.
-
-    :return:
-        The newly created folder instance.
-
-    Raises:
-        ValueError: If title already exists for the same user.
-    """
-    title = folder.title.strip()
-    parent_id = folder.parent_id  # already None if client sent 0 (your schema)
-
-    if parent_id is not None:
-        parent = await db.scalar(
-            select(models.Folder).where(
-                models.Folder.id == parent_id,
+        """
+        stmt = select(
+            exists().where(
                 models.Folder.user_id == user_id,
                 models.Folder.deleted_at.is_(None),
+                models.Folder.title == title.strip(),
             )
         )
-        if not parent:
-            raise ValueError("Parent folder not found or not accessible")
+        return await self.db.scalar(stmt)
 
-    if await folder_exists_by_title_at_level(db, user_id, parent_id, title):
-        raise ValueError(f"A folder named '{title}' already exists at this level.")
+    async def folder_exists_by_title_at_level(
+        self, user_id: int, parent_id: int | None, title: str
+    ) -> bool:
+        """
+            Check folder title existence within the same level for a certain user.
+        :param
+            user_id: Target user ID.
+            parent_id: Target parent level ID.
+            title: Target folder title.
+        :return:
+            Returns true if a title exist within the same level for the same user or false if None.
+        """
+        conditions = [
+            models.Folder.user_id == user_id,
+            models.Folder.deleted_at.is_(None),
+            models.Folder.title == title.strip(),
+        ]
+        if parent_id is None:
+            conditions.append(models.Folder.parent_id.is_(None))
+        else:
+            conditions.append(models.Folder.parent_id == parent_id)
 
-    payload = folder.model_dump()
-    payload["user_id"] = user_id
-    payload["title"] = title
+        stmt = select(exists().where(*conditions))
+        return await self.db.scalar(stmt)
 
-    db_folder = models.Folder(**payload)
-    db.add(db_folder)
-    try:
-        await db.commit()
-    except IntegrityError:
-        await db.rollback()
-        raise ValueError(f"A folder named '{title}' already exists at this level.")
+    async def get_folder_by_id_including_deleted(self, folder_id: int):
+        """Fetch a folder by ID, including soft-deleted rows.
 
-    result = await db.execute(
-        _with_folder_graph(
-            select(models.Folder).where(models.Folder.id == db_folder.id)
+        Args:
+            folder_id: Database primary key.
+
+        Returns:
+            The matching "Folder" instance or "None" if not found.
+        """
+        result = await self.db.execute(
+            select(models.Folder).where(models.Folder.id == folder_id)
         )
-    )
-    return result.scalar_one()
+        return result.scalar_one_or_none()
 
+    async def get_folder_by_id_any_status(self, *, folder_id: int):
+        return await self.db.get(
+            models.Folder, folder_id, options=folder_graph_options()
+        )
 
-async def update_folder(
-    db: AsyncSession, user_id: int, folder_id: int, updated_folder: schemas.FolderUpdate
-):
-    """
-        Update Folder attributes.
+    async def create_folder(self, db_folder: models.Folder):
+        """
+            Create new folder with distinct title for a certain user.
+        :param
+            user_id: Target user ID.
+            folder:  Pydantic payload containing folder's fields.
 
-    :param db: Async SQLAlchemy session.
-    :param user_id: Target User ID.
-    :param folder_id: Target Folder ID
-    :param updated_folder: Pydantic payload containing folder's fields.
-    :return: The updated folder instance or None if the folder doesn't exist or soft-deleted
-    :raises:
-        ValueError: If the new title conflicts with another active title
-            or if the commit hits a uniqueness violation, or if the folder doesn't exist.
-    """
+        :return:
+            The newly created folder instance.
+        """
+        self.db.add(db_folder)
+        await self.db.flush()
+        folder = await self.db.get(
+            models.Folder, db_folder.id, options=folder_graph_options()
+        )
+        return folder
 
-    folder = await get_folder_by_id_and_user(db, user_id, folder_id)
-    if not folder:
-        raise ValueError(f"Folder with id: {folder_id} doesn't exist!")
+    async def update_folder(self, folder: models.Folder, data: Mapping[str, Any]):
+        """
+            Update Folder attributes.
 
-    data = updated_folder.model_dump(exclude_unset=True)
-    target_parent_id = data.get("parent_id", folder.parent_id)
+        :param data: folder updated data
+        :param folder: folder instance.
+        :return: The updated folder instance or None if the folder doesn't exist or soft-deleted
+        """
+        for key, value in data.items():
+            setattr(folder, key, value)
+        await self.db.flush()
+        await self.db.commit()
+        result = await self.db.get(
+            models.Folder, folder.id, options=folder_graph_options()
+        )
+        return result
 
-    if target_parent_id is not None:
-        if target_parent_id == folder_id:
-            raise ValueError("A folder cannot be its own parent")
-        parent = await db.scalar(
-            select(models.Folder).where(
-                models.Folder.id == target_parent_id,
-                models.Folder.user_id == user_id,
-                models.Folder.deleted_at.is_(None),
+    async def soft_delete_subtree(self, *, user_id: int, root_folder_id: int) -> int:
+        """
+        Soft delete the folder subtree rooted at root_folder_id for user_id.
+        :param user_id: Target user ID.
+        :param root_folder_id: Target root folder ID.
+        :return: number of rows updated.
+        """
+        fd = models.Folder
+        now = datetime.now(timezone.utc)
+
+        tree = (
+            select(fd.id, fd.parent_id)
+            .where(
+                fd.id == root_folder_id, fd.user_id == user_id, fd.deleted_at.is_(None)
+            )
+            .cte("tree", recursive=True)
+        )
+        ct = aliased(fd)
+        tree = tree.union_all(
+            select(ct.id, ct.parent_id).where(
+                ct.parent_id == tree.c.id,
+                ct.user_id == user_id,
+                ct.deleted_at.is_(None),
             )
         )
-        if not parent:
-            raise ValueError("Parent folder not found or not accessible")
 
-    target_title = data.get("title", folder.title)
-    if isinstance(target_title, str):
-        target_title = target_title.strip()
-
-    conditions = [
-        models.Folder.user_id == user_id,
-        models.Folder.deleted_at.is_(None),
-        models.Folder.id != folder_id,
-        models.Folder.title == target_title,
-    ]
-    if target_parent_id is None:
-        conditions.append(models.Folder.parent_id.is_(None))
-    else:
-        conditions.append(models.Folder.parent_id == target_parent_id)
-
-    if await db.scalar(select(exists().where(*conditions))):
-        raise ValueError(
-            f"A folder named '{target_title}' already exists at this level"
+        res = await self.db.execute(
+            update(fd)
+            .where(fd.id.in_(select(tree.c.id)))
+            .values(deleted_at=now, is_active=False)
         )
-
-    if "title" in data:
-        folder.title = target_title
-        del data["title"]
-    if "parent_id" in data:
-        folder.parent_id = target_parent_id
-        del data["parent_id"]
-    for key, value in data.items():
-        setattr(folder, key, value)
-
-    try:
-        await db.commit()
-    except IntegrityError:
-        await db.rollback()
-        raise ValueError(
-            f"A folder named '{target_title}' already exists at this level"
-        )
-
-    result = await db.execute(
-        _with_folder_graph(select(models.Folder).where(models.Folder.id == folder.id))
-    )
-    return result.scalar_one()
-
-
-async def soft_delete_folder_by_id(db: AsyncSession, user_id: int, folder_id: int):
-    """
-        Soft delete a folder and its children.
-    :param db: Async SQLAlchemy session.
-    :param user_id: Target User ID.
-    :param folder_id: Target Folder ID
-    :return: The updated folder instance with "deleted_at" and "is_active" attributes.
-    """
-
-    fd = models.Folder
-    now = datetime.now(timezone.utc)
-
-    stmt = (
-        select(fd)
-        .where(fd.id == folder_id)
-        .where(fd.user_id == user_id)
-        .where(fd.deleted_at.is_(None))
-    )
-
-    root = await db.scalar(stmt)
-
-    if not root:
-        raise ValueError(
-            f"Folder with id: {folder_id} doesn't exist or is already deleted"
-        )
-
-    # Build recursive CTE of root plus all descendants (active only)
-    tree = (
-        select(fd.id, fd.parent_id)
-        .where(fd.id == folder_id, fd.user_id == user_id, fd.deleted_at.is_(None))
-        .cte("tree", recursive=True)
-    )
-
-    ct = aliased(fd)
-    tree = tree.union_all(
-        select(ct.id, ct.parent_id).where(
-            ct.parent_id == tree.c.id,
-            ct.user_id == user_id,
-            ct.deleted_at.is_(None),
-        )
-    )
-
-    # Bulk soft-delete all in the tree
-    await db.execute(
-        update(fd)
-        .where(fd.id.in_(select(tree.c.id)))
-        .values(deleted_at=now, is_active=False)
-    )
-    await db.commit()
-
-    result = await db.execute(_with_folder_graph(select(fd).where(fd.id == folder_id)))
-    return result.scalar_one()
+        await self.db.commit()
+        return int(res.rowcount or 0)

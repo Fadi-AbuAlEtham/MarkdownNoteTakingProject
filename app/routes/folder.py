@@ -2,12 +2,10 @@ from typing import Annotated, List
 
 from fastapi import APIRouter, Depends, status
 from fastapi.params import Path
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user_id
-from app.core.db import get_db
+from app.api.deps import get_folder_service
 from app.schemas import folder as folder_schema
-from app.services import folder as folder_service
+from app.services.folder import FolderService
 
 router = APIRouter(prefix="/folders", tags=["folders"])
 
@@ -19,19 +17,15 @@ router = APIRouter(prefix="/folders", tags=["folders"])
 )
 async def get_folder_by_id(
     folder_id: Annotated[int, Path(title="The ID of the folder to get", gt=0)],
-    db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id),
+    folder_service: FolderService = Depends(get_folder_service),
 ):
     """
     Get a folder by ID.
     :param folder_id: Target folder ID.
-    :param db: Async SQLAlchemy session.
-    :param current_user_id: The ID of the current user.
+    :param folder_service: Folder service to use.
     :return: The target folder.
     """
-    return await folder_service.get_folder_by_and_user(
-        db, folder_id=folder_id, user_id=current_user_id
-    )
+    return await folder_service.get_folder_by_and_user(folder_id=folder_id)
 
 
 @router.get(
@@ -42,18 +36,16 @@ async def get_folder_by_id(
 async def get_all_active_folders(
     skip: int = 0,
     limit: int = 100,
-    db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id),
+    folder_service: FolderService = Depends(get_folder_service),
 ):
     """
     Get all active folders.
     :param skip: Starting offset
     :param limit: End offset
-    :param db: Async SQLAlchemy session
-    :param current_user_id: User ID
+    :param folder_service: Folder service to use.
     :return: List of all active folders for the current user
     """
-    return await folder_service.get_all_active_folders(db, current_user_id, skip, limit)
+    return await folder_service.get_all_active_folders(skip=skip, limit=limit)
 
 
 @router.get(
@@ -65,19 +57,15 @@ async def get_active_notes_in_folder(
     folder_id: Annotated[
         int, Path(title="The ID of the folder to get the notes from", gt=0)
     ],
-    db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id),
+    folder_service: FolderService = Depends(get_folder_service),
 ):
     """
     Get all active notes in folder.
     :param folder_id: Target folder ID.
-    :param db: Async SQLAlchemy session
-    :param current_user_id: User ID
+    :param folder_service: Folder service to use.
     :return: List of all active notes in a folder for the current user
     """
-    return await folder_service.get_active_notes_in_folder(
-        db, user_id=current_user_id, folder_id=folder_id
-    )
+    return await folder_service.get_active_notes_in_folder(folder_id=folder_id)
 
 
 @router.post(
@@ -87,54 +75,44 @@ async def get_active_notes_in_folder(
 )
 async def create_folder(
     folder: folder_schema.FolderCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id),
+    folder_service: FolderService = Depends(get_folder_service),
 ):
     """
     Create a new folder.
-    :param db: Async SQLAlchemy session
-    :param current_user_id: User ID
     :param folder: Pydantic model that holds the new folder payload
+    :param folder_service: Folder service to use.
     :return: The newly created folder
     """
-    return await folder_service.create_folder(
-        db, user_id=current_user_id, folder_to_create=folder
-    )
+    return await folder_service.create_folder(folder_to_create=folder)
 
 
 @router.put("/{folder_id}", response_model=folder_schema.FolderResponse)
 async def update_folder(
     folder: folder_schema.FolderUpdate,
     folder_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id),
+    folder_service: FolderService = Depends(get_folder_service),
 ):
     """
     Update a folder.
-    :param db: Async SQLAlchemy session
-    :param current_user_id: User ID
     :param folder_id: Target folder id
     :param folder: Pydantic model that holds the new folder payload
+    :param folder_service: Folder service to use.
     :return: The updated folder
     """
     return await folder_service.update_folder(
-        db, user_id=current_user_id, folder_id=folder_id, folder_to_update=folder
+        folder_id=folder_id, folder_to_update=folder
     )
 
 
 @router.delete("/{folder_id}", response_model=folder_schema.FolderResponse)
 async def delete_folder(
     folder_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id),
+    folder_service: FolderService = Depends(get_folder_service),
 ):
     """
     Delete a folder.
-    :param db: Async SQLAlchemy session
-    :param current_user_id: User ID
     :param folder_id: ID of the folder to delete
+    :param folder_service: Folder service to use.
     :return: The deleted folder
     """
-    return await folder_service.soft_delete_folder(
-        db, user_id=current_user_id, folder_id=folder_id
-    )
+    return await folder_service.soft_delete_folder(folder_id=folder_id)
