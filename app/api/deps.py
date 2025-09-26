@@ -8,8 +8,14 @@ from jose import jwt, JWTError
 
 from app.core.db import get_db
 from app.models import user as models
+from app.repositories.folder import FolderRepository
+from app.repositories.note import NoteRepository
+from app.repositories.revision import RevisionRepository
 from app.repositories.tag import TagRepository
 from app.repositories.user import UserRepository
+from app.services.folder import FolderService
+from app.services.note import NoteService
+from app.services.revision import RevisionService
 from app.services.tag import TagService
 from app.services.user import UserService
 
@@ -93,3 +99,47 @@ def get_tag_service(
     user_id: int = Depends(get_current_user_id),
 ) -> TagService:
     return TagService(repo, user_id)
+
+
+def get_folder_repo(db: AsyncSession = Depends(get_db)) -> FolderRepository:
+    return FolderRepository(db)
+
+
+def get_folder_service(
+    repo: FolderRepository = Depends(get_folder_repo),
+    user_id: int = Depends(get_current_user_id),
+) -> FolderService:
+    return FolderService(repo, user_id)
+
+
+def get_revision_repo(db: AsyncSession = Depends(get_db)) -> RevisionRepository:
+    return RevisionRepository(db)
+
+
+def get_revision_service(
+    repo: RevisionRepository = Depends(get_revision_repo),
+    user_id: int = Depends(get_current_user_id),
+) -> RevisionService:
+    return RevisionService(repo, user_id)
+
+
+def get_note_repo(db: AsyncSession = Depends(get_db)) -> NoteRepository:
+    return NoteRepository(db)
+
+
+def get_note_service(
+    note_repo: NoteRepository = Depends(get_note_repo),
+    tag_repo: TagRepository = Depends(get_tag_repo),
+    folder_repo: FolderRepository = Depends(get_folder_repo),
+    tag_service: TagService = Depends(get_tag_service),
+    revision_repo: RevisionRepository = Depends(get_revision_repo),
+    user_id: int = Depends(get_current_user_id),
+) -> NoteService:
+    return NoteService(
+        note_repo=note_repo,
+        user_id=user_id,
+        tag_repo=tag_repo,
+        folder_repo=folder_repo,
+        tag_service=tag_service,
+        revision_repo=revision_repo,
+    )

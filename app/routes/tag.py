@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, status
 from fastapi.params import Path
 
 from app.api.deps import get_tag_service
-from app.schemas import tag as tag_schema, note_tag as note_tag_schema
+from app.schemas import tag as tag_schema
 from app.services.tag import TagService
 
 router = APIRouter(prefix="/tags", tags=["tags"])
@@ -42,6 +42,7 @@ async def get_all_active_tags(
     Get all active tags.
     :param skip: Starting offset
     :param limit: ending offset
+    :param tag_service: Tag service to use.
     :return: List of all active tags for the current user
     """
     return await tag_service.get_all_active_tags(skip, limit)
@@ -73,6 +74,7 @@ async def create_tag(
     """
     Create a new tag.
     :param tag: Pydantic model that holds the new tag payload
+    :param tag_service: Tag service to use.
     :return: The newly created tag
     """
     return await tag_service.create_tag(tag_to_create=tag)
@@ -88,6 +90,7 @@ async def update_tag(
     Update a tag.
     :param tag_id: Target tag id
     :param tag: Pydantic model that holds the new tag payload
+    :param tag_service: Tag service to use.
     :return: The updated tag
     """
     return await tag_service.update_tag(tag_id=tag_id, tag_to_update=tag)
@@ -101,6 +104,7 @@ async def delete_tag(
     """
     Delete a tag.
     :param tag_id:  of the tag to delete
+    :param tag_service: Tag service to use.
     :return: The deleted tag
     """
     return await tag_service.soft_delete_tag(tag_id=tag_id)

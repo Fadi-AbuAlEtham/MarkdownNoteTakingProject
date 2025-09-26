@@ -25,8 +25,6 @@ class TagService:
     async def get_all_active_tags(self, skip: int = 0, limit: int = 100):
         """
         Get all active tags.
-        :param user_id: target user_id
-        :param db: Async SQLAlchemy session.
         :param skip: Number of rows to skip (offset).
         :param limit: Maximum number of rows to return.
         :return: All active tags.
@@ -153,3 +151,12 @@ class TagService:
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
         return to_response_dict(obj=deleted_tag, res_type=schemas_tag.TagResponse)
+
+    async def validate_tags(self, candidate_ids: set[int]):
+        valid_ids = await self.tag_repo.validate_tags(
+            candidate_ids=candidate_ids, user_id=self.user_id
+        )
+        ignored_tag_ids = sorted(candidate_ids - valid_ids)
+        if not valid_ids:
+            raise ValueError(f"No valid tags found for IDs: {sorted(candidate_ids)}")
+        return ignored_tag_ids, valid_ids

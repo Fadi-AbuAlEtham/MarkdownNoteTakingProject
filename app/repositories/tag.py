@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 from typing import Mapping, Any
 
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, exists
 
@@ -109,6 +108,7 @@ class TagRepository:
         """
         Update Certain tag data based on its tag_id.
         :param tag: Pydantic payload containing tag's fields.
+        :param data: Updated tag data.
         :return: The updated tag instance or None if the tag doesn't exist or soft-deleted
         """
 
@@ -147,3 +147,26 @@ class TagRepository:
         if tag_id is not None:
             stmt = stmt.where(models.Tag.id != tag_id)
         return bool(await self.db.scalar(stmt))
+
+    async def validate_tags(self, candidate_ids: set[int], user_id: int):
+        res = await self.db.execute(
+            select(models.Tag.id).where(
+                models.Tag.user_id == user_id,
+                models.Tag.deleted_at.is_(None),
+                models.Tag.id.in_(candidate_ids),
+            )
+        )
+        valid_ids = set(res.scalars().all())
+        return valid_ids
+
+    async def get_tags_by_ids(self, tag_ids: set[int]):
+        """
+        Fetch tags by a list of IDs.
+        Optionally scope to a user and/or only active (not soft-deleted) tags.
+        :param tag_ids: Target tag IDs
+        :return: A list of tag instances.
+        """
+        stmt = select(models.Tag).where(models.Tag.id.in_(list(tag_ids)))
+        res = await self.db.execute(stmt)
+        rows = res.scalars().all()
+        return rows
