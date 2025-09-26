@@ -84,13 +84,19 @@ class Note(Base):
             "is_public",
             postgresql_where=text("deleted_at IS NULL"),
         ),
-        # Prevent duplicate titles within the same folder for a user,
-        # ignoring soft-deleted rows (CITEXT makes this case-insensitive).
         UniqueConstraint(
             "user_id",
             "folder_id",
             "title",
             name="uq_notes_user_folder_title_active",
             deferrable=False,
+        ),
+        Index(
+            "uq_notes_user_folder_title_active",
+            "user_id",
+            func.coalesce(folder_id, 0),
+            title,
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
         ),
     )
