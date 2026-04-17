@@ -1,147 +1,142 @@
 from typing import Optional
 
 from fastapi import HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 
+from ..repositories.issue import IssueRepository
+from ..repositories.note import NoteRepository
+from ..repositories.revision import RevisionRepository
 from ..schemas import issue as schemas_issue
-from ..repositories import issue as issue_repo
 
 
-def to_response_dict(obj) -> dict:
-    """
-    Convert response to dict.
-    :param obj: Response to convert.
-    :return: Response dict.
-    """
-    return schemas_issue.ResponseIssue.model_validate(
-        obj, from_attributes=True
-    ).model_dump()
+class IssueService:
+    def __init__(
+        self,
+        issue_repo: IssueRepository,
+        note_repo: NoteRepository,
+        revision_repo: RevisionRepository,
+        user_id: int,
+    ):
+        self.issue_repo = issue_repo
+        self.note_repo = note_repo
+        self.revision_repo = revision_repo
+        self.user_id = user_id
 
+    async def get_issue_by_id_and_user(self, issue_id: int):
+        issue = await self.issue_repo.get_issue_by_id_user(issue_id, self.user_id)
+        if not issue:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found"
+            )
+        return issue
 
-async def get_issue_by_id_and_user(db: AsyncSession, issue_id: int, user_id: int):
-    """
-    Get issue by id and user
-    :param db: Async SQLAlchemy session
-    :param issue_id: Target issue id
-    :param user_id: Target user id
-    :return: Issue object
-    """
-    issue = await issue_repo.get_issue_by_id_user(db, issue_id, user_id)
-    if not issue:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found"
+    async def get_all_active_issues(self, skip: int = 0, limit: int = 100):
+        issues = await self.issue_repo.get_all_active_issues_user(
+            user_id=self.user_id, skip=skip, limit=limit
         )
-    return to_response_dict(issue)
+        return issues
 
+    async def get_issues_by_note(
+        self,
+        note_id: int,
+        revision_id: Optional[int] = None,
+        skip: int = 0,
+        limit: int = 100,
+    ):
+        note = await self.note_repo.get_note_by_id_user(note_id=note_id, user_id=self.user_id)
+        if not note:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
 
-async def get_all_active_issues(
-    db: AsyncSession, user_id: int, skip: int = 0, limit: int = 100
-):
-    """
-    Get all active issues
-    :param db: Async SQLAlchemy session
-    :param user_id: Target user id
-    :param skip: Number of issues to skip
-    :param limit: Number of issues to return
-    :return: List of Issue objects
-    """
-    issues = await issue_repo.get_all_active_issues_user(
-        db, user_id=user_id, skip=skip, limit=limit
-    )
-    return [to_response_dict(i) for i in issues]
+        if revision_id is None:
+            issues = await self.issue_repo.list_issues_by_note(
+                note_id=note_id, skip=skip, limit=limit
+            )
+            return issues
 
-
-async def get_issues_by_note(
-    db: AsyncSession,
-    user_id: int,
-    note_id: int,
-    revision_id: Optional[int] = None,
-    skip: int = 0,
-    limit: int = 100,
-):
-    """
-    Get issues by note
-    :param db: Async SQLAlchemy session
-    :param user_id: Target user id
-    :param note_id: Target note id
-    :param revision_id: Target revision id
-    :param skip: Number of issues to skip
-    :param limit: Number of issues to return
-    :return: List of Issue objects
-    """
-    issues = await issue_repo.list_issues_by_note(
-        db,
-        user_id=user_id,
-        note_id=note_id,
-        revision_id=revision_id,
-        skip=skip,
-        limit=limit,
-    )
-    return [to_response_dict(i) for i in issues]
-
-
-async def create_issue(
-    db: AsyncSession, user_id: int, issue_to_create: schemas_issue.CreateIssue
-):
-    """
-    Create new issue
-    :param db: Async SQLAlchemy session
-    :param user_id: Target user id
-    :param issue_to_create: Issue to create
-    :return: Issue_object
-    """
-    try:
-        issue = await issue_repo.create_issue(
-            db, user_id=user_id, issue_to_create=issue_to_create
+        revision = await self.revision_repo.get_revision_by_id_and_user_note(
+            revision_id=revision_id,
+            user_id=self.user_id,
+            note_id=note_id,
         )
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
-    return to_response_dict(issue)
-
-
-async def update_issue(
-    db: AsyncSession,
-    user_id: int,
-    issue_id: int,
-    issue_to_update: schemas_issue.UpdateIssue,
-):
-    """
-    Update existing issue
-    :param db: Async SQLAlchemy session
-    :param user_id: Target user id
-    :param issue_id: Target issue id
-    :param issue_to_update: Pydantic model that holds issue payload
-    :return: Updated Issue object
-    """
-    try:
-        issue = await issue_repo.update_issue(
-            db, user_id=user_id, issue_id=issue_id, issue_to_update=issue_to_update
+        if not revision:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Revision not found for this note",
+            )
+        issues = await self.issue_repo.list_issues_by_note_and_revision(
+            note_id=note_id, revision_id=revision_id, skip=skip, limit=limit
         )
-    except ValueError as e:
-        msg = str(e).lower()
-        if "exist" in msg or "duplicate" in msg or "already" in msg:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        return issues
 
-    if not issue:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found"
+    async def create_issue(self, issue_to_create: schemas_issue.CreateIssue):
+        note = await self.note_repo.get_note_by_id_user(
+            note_id=issue_to_create.note_id, user_id=self.user_id
         )
-    return to_response_dict(issue)
+        if not note:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
 
-
-async def soft_delete_issue(db: AsyncSession, user_id: int, issue_id: int):
-    """
-    Delete existing issue
-    :param db: Async SQLAlchemy session
-    :param user_id: Target user id
-    :param issue_id: Target issue id
-    :return: Deleted Issue object
-    """
-    try:
-        issue = await issue_repo.soft_delete_issue(
-            db, user_id=user_id, issue_id=issue_id
+        revision = await self.revision_repo.get_revision_by_id_and_user_note(
+            revision_id=issue_to_create.revision_id,
+            user_id=self.user_id,
+            note_id=issue_to_create.note_id,
         )
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-    return to_response_dict(issue)
+        if not revision:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Revision not found for this note",
+            )
+
+        try:
+            issue = await self.issue_repo.create_issue(data=issue_to_create.model_dump())
+        except IntegrityError:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="Duplicate issue detected."
+            )
+        return issue
+
+    async def update_issue(self, issue_id: int, issue_to_update: schemas_issue.UpdateIssue):
+        issue = await self.issue_repo.get_issue_by_id_user(issue_id, self.user_id)
+        if not issue:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found"
+            )
+
+        data = issue_to_update.model_dump(exclude_unset=True)
+        target_note_id = data.get("note_id", issue.note_id)
+        target_revision_id = data.get("revision_id", issue.revision_id)
+
+        note = await self.note_repo.get_note_by_id_user(
+            note_id=target_note_id, user_id=self.user_id
+        )
+        if not note:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
+
+        if target_revision_id is not None:
+            revision = await self.revision_repo.get_revision_by_id_and_user_note(
+                revision_id=target_revision_id,
+                user_id=self.user_id,
+                note_id=target_note_id,
+            )
+            if not revision:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Revision not found for this note",
+                )
+
+        try:
+            issue = await self.issue_repo.update_issue(issue=issue, data=data)
+        except IntegrityError:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Failed to update issue due to a constraint violation.",
+            )
+        return issue
+
+    async def soft_delete_issue(self, issue_id: int):
+        issue = await self.issue_repo.get_issue_by_id_user(issue_id, self.user_id)
+        if not issue:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found"
+            )
+        issue = await self.issue_repo.soft_delete_issue(issue=issue)
+        return issue

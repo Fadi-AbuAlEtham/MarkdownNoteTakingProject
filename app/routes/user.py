@@ -40,7 +40,7 @@ async def get_all_users(
     return await user_service.get_all_users(skip=skip, limit=limit)
 
 
-@router.get("/", response_model=List[user_schema.UserResponse], status_code=200)
+@router.get("/active/", response_model=List[user_schema.UserResponse], status_code=200)
 async def get_all_active_users(
     skip: int = 0,
     limit: int = 100,

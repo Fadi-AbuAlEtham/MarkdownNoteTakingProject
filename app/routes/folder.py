@@ -49,7 +49,7 @@ async def get_all_active_folders(
 
 
 @router.get(
-    "{folder_id}/notes/",
+    "/{folder_id}/notes/",
     response_model=folder_schema.FolderWithNotesResponse,
     status_code=status.HTTP_200_OK,
 )

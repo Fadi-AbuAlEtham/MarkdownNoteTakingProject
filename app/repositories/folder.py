@@ -6,11 +6,9 @@ from typing import Mapping, Any
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, exists, update
-from sqlalchemy.orm import aliased
+from sqlalchemy.orm import aliased, selectinload
 
-from ..core.utils.format_response import folder_graph_options
 from ..models import folder as models
-from ..schemas import folder as schemas
 
 """
 Async folder repository.
@@ -25,9 +23,29 @@ Async folder repository.
 """
 
 
+def folder_graph_options():
+    return (
+        selectinload(models.Folder.parent).load_only(
+            models.Folder.id, models.Folder.title
+        ),
+        selectinload(models.Folder.children).load_only(
+            models.Folder.id, models.Folder.title
+        ),
+    )
+
+
+def with_folder_graph(stmt):
+    return stmt.options(*folder_graph_options())
+
+
 class FolderRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    async def load_folder_graph(self, folder_id: int):
+        stmt = select(models.Folder).where(models.Folder.id == folder_id)
+        result = await self.db.execute(with_folder_graph(stmt))
+        return result.scalar_one_or_none()
 
     async def get_folder_by_id(self, folder_id: int):
         """
@@ -98,34 +116,33 @@ class FolderRepository:
             exists().where(
                 models.Folder.user_id == user_id,
                 models.Folder.deleted_at.is_(None),
-                models.Folder.title == title.strip(),
+                models.Folder.title == title,
             )
         )
         return await self.db.scalar(stmt)
 
-    async def folder_exists_by_title_at_level(
-        self, user_id: int, parent_id: int | None, title: str
-    ) -> bool:
-        """
-            Check folder title existence within the same level for a certain user.
-        :param
-            user_id: Target user ID.
-            parent_id: Target parent level ID.
-            title: Target folder title.
-        :return:
-            Returns true if a title exist within the same level for the same user or false if None.
-        """
-        conditions = [
-            models.Folder.user_id == user_id,
-            models.Folder.deleted_at.is_(None),
-            models.Folder.title == title.strip(),
-        ]
-        if parent_id is None:
-            conditions.append(models.Folder.parent_id.is_(None))
-        else:
-            conditions.append(models.Folder.parent_id == parent_id)
+    async def folder_exists_by_title_at_root(self, user_id: int, title: str) -> bool:
+        stmt = select(
+            exists().where(
+                models.Folder.user_id == user_id,
+                models.Folder.deleted_at.is_(None),
+                models.Folder.title == title,
+                models.Folder.parent_id.is_(None),
+            )
+        )
+        return await self.db.scalar(stmt)
 
-        stmt = select(exists().where(*conditions))
+    async def folder_exists_by_title_in_parent(
+        self, user_id: int, parent_id: int, title: str
+    ) -> bool:
+        stmt = select(
+            exists().where(
+                models.Folder.user_id == user_id,
+                models.Folder.deleted_at.is_(None),
+                models.Folder.title == title,
+                models.Folder.parent_id == parent_id,
+            )
+        )
         return await self.db.scalar(stmt)
 
     async def get_folder_by_id_including_deleted(self, folder_id: int):
@@ -143,9 +160,7 @@ class FolderRepository:
         return result.scalar_one_or_none()
 
     async def get_folder_by_id_any_status(self, *, folder_id: int):
-        return await self.db.get(
-            models.Folder, folder_id, options=folder_graph_options()
-        )
+        return await self.load_folder_graph(folder_id)
 
     async def create_folder(self, db_folder: models.Folder):
         """
@@ -159,9 +174,8 @@ class FolderRepository:
         """
         self.db.add(db_folder)
         await self.db.flush()
-        folder = await self.db.get(
-            models.Folder, db_folder.id, options=folder_graph_options()
-        )
+        await self.db.commit()
+        folder = await self.load_folder_graph(db_folder.id)
         return folder
 
     async def update_folder(self, folder: models.Folder, data: Mapping[str, Any]):
@@ -176,9 +190,7 @@ class FolderRepository:
             setattr(folder, key, value)
         await self.db.flush()
         await self.db.commit()
-        result = await self.db.get(
-            models.Folder, folder.id, options=folder_graph_options()
-        )
+        result = await self.load_folder_graph(folder.id)
         return result
 
     async def soft_delete_subtree(self, *, user_id: int, root_folder_id: int) -> int:

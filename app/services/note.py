@@ -4,7 +4,6 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 
 from .tag import TagService
-from ..core.utils.format_response import to_response_dict
 from ..repositories.note import NoteRepository
 from ..repositories.folder import FolderRepository
 from ..repositories.revision import RevisionRepository
@@ -30,6 +29,22 @@ class NoteService:
         self.revision_repo = revision_repo
         self.user_id = user_id
 
+    @staticmethod
+    def _split_tag_ids(raw_tag_ids: list[int | None] | None) -> tuple[list[int], set[int]]:
+        ignored_ids: set[int] = set()
+        valid_candidates: set[int] = set()
+
+        for raw_id in raw_tag_ids or []:
+            if raw_id is None:
+                continue
+            tag_id = int(raw_id)
+            if tag_id <= 0:
+                ignored_ids.add(tag_id)
+                continue
+            valid_candidates.add(tag_id)
+
+        return sorted(ignored_ids), valid_candidates
+
     async def get_note_by_id_and_user(self, note_id: int):
         """
         Get note by id and user
@@ -41,22 +56,19 @@ class NoteService:
         )
         if not note:
             raise HTTPException(status_code=404, detail="Note not found")
-        return to_response_dict(obj=note, res_type=schemas_note.NoteResponse)
+        return note
 
-    async def get_all_active_notes(self, user_id: int, skip: int = 0, limit: int = 100):
+    async def get_all_active_notes(self, skip: int = 0, limit: int = 100):
         """
         Get all active notes
-        :param user_id: Target user id.
         :param skip: Skip-cursor.
         :param limit: Limit cursor.
         :return: All active notes.
         """
         notes = await self.note_repo.get_all_active_notes(
-            user_id=user_id, skip=skip, limit=limit
+            user_id=self.user_id, skip=skip, limit=limit
         )
-        return [
-            to_response_dict(obj=n, res_type=schemas_note.NoteResponse) for n in notes
-        ]
+        return notes
 
     async def create_note(self, note: schemas_note.CreateNote):
         """
@@ -78,15 +90,23 @@ class NoteService:
         valid_tag_ids: set[int] = set()
 
         if note.tag_ids:
-            candidate_ids = {int(t) for t in note.tag_ids if t is not None}
+            ignored_tag_ids, candidate_ids = self._split_tag_ids(note.tag_ids)
             if candidate_ids:
-                ignored_tag_ids, valid_tag_ids = await self.tag_service.validate_tags(
+                repo_ignored_ids, valid_tag_ids = await self.tag_service.validate_tags(
                     candidate_ids=candidate_ids
                 )
+                ignored_tag_ids.extend(repo_ignored_ids)
 
-        if await self.note_repo.check_note_existence(
-            title=note.title, user_id=self.user_id, folder_id=note.folder_id
-        ):
+        title_conflict = (
+            await self.note_repo.check_root_note_existence(
+                title=note.title, user_id=self.user_id
+            )
+            if note.folder_id is None
+            else await self.note_repo.check_note_existence_in_folder(
+                title=note.title, user_id=self.user_id, folder_id=note.folder_id
+            )
+        )
+        if title_conflict:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"This title: {note.title} exists from before.",
@@ -135,7 +155,7 @@ class NoteService:
             )
 
         return (
-            to_response_dict(obj=created_note, res_type=schemas_note.NoteResponse),
+            created_note,
             ignored_tag_ids,
         )
 
@@ -179,12 +199,13 @@ class NoteService:
         ignored_tag_ids: list[int] = []
         if "tag_ids" in data:
             incoming = data["tag_ids"] or []
-            candidate_ids = {int(t) for t in incoming if t is not None}
+            ignored_tag_ids, candidate_ids = self._split_tag_ids(incoming)
 
             if candidate_ids:
-                ignored_tag_ids, valid_ids = await self.tag_service.validate_tags(
+                repo_ignored_ids, valid_ids = await self.tag_service.validate_tags(
                     candidate_ids=candidate_ids
                 )
+                ignored_tag_ids.extend(repo_ignored_ids)
                 if valid_ids:
                     tag_rows = await self.tag_repo.get_tags_by_ids(tag_ids=valid_ids)
                     note.tags = list(tag_rows)
@@ -230,7 +251,7 @@ class NoteService:
             )
 
         return (
-            to_response_dict(obj=updated_note, res_type=schemas_note.NoteResponse),
+            updated_note,
             ignored_tag_ids,
         )
 
@@ -253,4 +274,4 @@ class NoteService:
                 deleted_tag = await self.note_repo.soft_delete_by_id(note)
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-        return to_response_dict(obj=deleted_tag, res_type=schemas_note.NoteResponse)
+        return deleted_tag

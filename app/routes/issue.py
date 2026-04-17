@@ -2,12 +2,10 @@ from typing import Annotated, List
 
 from fastapi import APIRouter, Depends, status
 from fastapi.params import Path
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user_id
-from app.core.db import get_db
+from app.api.deps import get_issue_service
 from app.schemas import issue as issue_schema
-from app.services import issue as issue_service
+from app.services.issue import IssueService
 
 router = APIRouter(prefix="/issues", tags=["issues"])
 
@@ -19,8 +17,7 @@ router = APIRouter(prefix="/issues", tags=["issues"])
 )
 async def get_issue_by_id(
     issue_id: Annotated[int, Path(title="The ID of the issue to get", gt=0)],
-    db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id),
+    issue_service: IssueService = Depends(get_issue_service),
 ):
     """
     Get a issue by ID.
@@ -29,9 +26,7 @@ async def get_issue_by_id(
     :param current_user_id: The ID of the current user.
     :return: The target issue.
     """
-    return await issue_service.get_issue_by_id_and_user(
-        db, issue_id=issue_id, user_id=current_user_id
-    )
+    return await issue_service.get_issue_by_id_and_user(issue_id=issue_id)
 
 
 @router.get(
@@ -42,8 +37,7 @@ async def get_issue_by_id(
 async def get_all_active_issues(
     skip: int = 0,
     limit: int = 100,
-    db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id),
+    issue_service: IssueService = Depends(get_issue_service),
 ):
     """
     Get all active issues.
@@ -53,7 +47,7 @@ async def get_all_active_issues(
     :param current_user_id: User ID
     :return: List of all active issues for the current user
     """
-    return await issue_service.get_all_active_issues(db, current_user_id, skip, limit)
+    return await issue_service.get_all_active_issues(skip=skip, limit=limit)
 
 
 @router.post(
@@ -63,8 +57,7 @@ async def get_all_active_issues(
 )
 async def create_issue(
     issue: issue_schema.CreateIssue,
-    db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id),
+    issue_service: IssueService = Depends(get_issue_service),
 ):
     """
     Create a new issue.
@@ -73,17 +66,14 @@ async def create_issue(
     :param issue: Pydantic model that holds the new issue payload
     :return: The newly created issue
     """
-    return await issue_service.create_issue(
-        db, user_id=current_user_id, issue_to_create=issue
-    )
+    return await issue_service.create_issue(issue_to_create=issue)
 
 
 @router.put("/{issue_id}", response_model=issue_schema.ResponseIssue)
 async def update_issue(
     issue: issue_schema.UpdateIssue,
     issue_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id),
+    issue_service: IssueService = Depends(get_issue_service),
 ):
     """
     Update a issue.
@@ -93,16 +83,13 @@ async def update_issue(
     :param issue: Pydantic model that holds the new issue payload
     :return: The updated issue
     """
-    return await issue_service.update_issue(
-        db, user_id=current_user_id, issue_id=issue_id, issue_to_update=issue
-    )
+    return await issue_service.update_issue(issue_id=issue_id, issue_to_update=issue)
 
 
 @router.delete("/{issue_id}", response_model=issue_schema.ResponseIssue)
 async def delete_issue(
     issue_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id),
+    issue_service: IssueService = Depends(get_issue_service),
 ):
     """
     Delete a issue.
@@ -111,6 +98,4 @@ async def delete_issue(
     :param issue_id:  of the issue to delete
     :return: The deleted issue
     """
-    return await issue_service.soft_delete_issue(
-        db, user_id=current_user_id, issue_id=issue_id
-    )
+    return await issue_service.soft_delete_issue(issue_id=issue_id)

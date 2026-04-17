@@ -1,6 +1,5 @@
 from fastapi import HTTPException, status
 
-from ..core.utils.format_response import to_response_dict
 from ..models.user import User as model_User
 from ..core.security import hash_password
 from ..schemas import user as schemas_user
@@ -20,7 +19,7 @@ class UserService:
         user = await self.user_repo.get_by_id(user_id)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
-        return to_response_dict(schemas_user.UserResponse, user)
+        return user
 
     async def get_all_active_users(self, skip: int = 0, limit: int = 100):
         """
@@ -30,7 +29,7 @@ class UserService:
         :return: Active user list.
         """
         users = await self.user_repo.list_active_users(skip=skip, limit=limit)
-        return [to_response_dict(schemas_user.UserResponse, user) for user in users]
+        return users
 
     async def get_all_users(self, skip: int = 0, limit: int = 100):
         """
@@ -40,7 +39,7 @@ class UserService:
         :return: User list.
         """
         users = await self.user_repo.list_all_users(skip=skip, limit=limit)
-        return [to_response_dict(schemas_user.UserResponse, user) for user in users]
+        return users
 
     async def create_user(self, user: schemas_user.CreateUser):
         """
@@ -70,7 +69,7 @@ class UserService:
             user = await self.user_repo.create_user(db_user)
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
-        return to_response_dict(schemas_user.UserResponse, user)
+        return user
 
     async def update_user(self, user_id: int, payload: schemas_user.UpdateUser):
         """
@@ -87,8 +86,8 @@ class UserService:
 
         if "email" in update_data:
             new_email = str(update_data.pop("email")).strip().lower()
-            if await self.user_repo.active_email_exists(
-                email=new_email, exclude_user_id=user_id
+            if await self.user_repo.active_email_exists_excluding_user(
+                email=new_email, user_id=user_id
             ):
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
@@ -98,8 +97,8 @@ class UserService:
 
         if "username" in update_data:
             new_username = update_data.pop("username").strip()
-            if await self.user_repo.active_username_exists(
-                username=new_username, exclude_user_id=user_id
+            if await self.user_repo.active_username_exists_excluding_user(
+                username=new_username, user_id=user_id
             ):
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
@@ -121,7 +120,7 @@ class UserService:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
-        return to_response_dict(schemas_user.UserResponse, user)
+        return user
 
     async def soft_delete_user(self, user_id: int):
         """
@@ -140,4 +139,4 @@ class UserService:
                 deleted_user = await self.user_repo.soft_delete(user)
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-        return to_response_dict(schemas_user.UserResponse, deleted_user)
+        return deleted_user

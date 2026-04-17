@@ -5,7 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, exists
 
 from ..models import tag as models
-from ..schemas import tag as schemas
 
 
 class TagRepository:
@@ -85,7 +84,7 @@ class TagRepository:
         """
         stmt = select(
             exists()
-            .where(models.Tag.title == title.strip())
+            .where(models.Tag.title == title)
             .where(models.Tag.deleted_at.is_(None))
             .where(models.Tag.user_id == user_id)
         )
@@ -104,7 +103,7 @@ class TagRepository:
         await self.db.refresh(tag)
         return tag
 
-    async def update_tag(self, tag: schemas.UpdateTag, data: Mapping[str, Any]):
+    async def update_tag(self, tag: models.Tag, data: Mapping[str, Any]):
         """
         Update Certain tag data based on its tag_id.
         :param tag: Pydantic payload containing tag's fields.
@@ -133,7 +132,9 @@ class TagRepository:
         await self.db.refresh(tag)
         return tag
 
-    async def active_title_exists(self, title: str, *, tag_id: int, user_id: int):
+    async def active_title_exists_excluding_tag(
+        self, title: str, *, tag_id: int, user_id: int
+    ):
         """
         Return True if an ACTIVE title (deleted_at IS NULL) exists with this user_id.
         Optionally exclude a specific user id.
@@ -144,8 +145,7 @@ class TagRepository:
             .where(models.Tag.deleted_at.is_(None))
             .where(models.Tag.user_id == user_id)
         )
-        if tag_id is not None:
-            stmt = stmt.where(models.Tag.id != tag_id)
+        stmt = stmt.where(models.Tag.id != tag_id)
         return bool(await self.db.scalar(stmt))
 
     async def validate_tags(self, candidate_ids: set[int], user_id: int):

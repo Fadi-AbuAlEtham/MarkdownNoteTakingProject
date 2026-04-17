@@ -1,14 +1,11 @@
 from datetime import datetime, timezone
-from typing import Optional, Any, Mapping
+from typing import Any, Mapping
 
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, exists, and_, update, func, RowMapping, Row
+from sqlalchemy import select, exists, and_
 from sqlalchemy.orm import selectinload
 
-from ..models import note as models, revision as rev_models
-from ..schemas import note as schemas
-from ..repositories.folder import FolderRepository as folder_repo
+from ..models import note as models
 
 
 class NoteRepository:
@@ -85,25 +82,46 @@ class NoteRepository:
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def check_note_existence(
-        self, title: str, user_id: int, folder_id: Optional[int] = None
+    async def get_note_with_tags_by_id_user(self, note_id: int, user_id: int):
+        stmt = (
+            select(models.Note)
+            .where(
+                models.Note.deleted_at.is_(None),
+                models.Note.id == note_id,
+                models.Note.user_id == user_id,
+            )
+            .options(selectinload(models.Note.tags))
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def check_root_note_existence(self, title: str, user_id: int):
+        stmt = select(
+            exists().where(
+                and_(
+                    models.Note.title == title,
+                    models.Note.user_id == user_id,
+                    models.Note.deleted_at.is_(None),
+                    models.Note.folder_id.is_(None),
+                )
+            )
+        )
+        result = await self.db.execute(stmt)
+        return bool(result.scalar())
+
+    async def check_note_existence_in_folder(
+        self, title: str, user_id: int, folder_id: int
     ):
-        """
-        Check if a note exists for a certain user.
-        If folder_id is provided, constrain to that folder.
-        If folder_id is None, check across all user's notes (regardless of folder).
-
-        :return: True if the note exists and False otherwise.
-        """
-        conditions = [
-            models.Note.title == title.strip(),
-            models.Note.user_id == user_id,
-            models.Note.deleted_at.is_(None),
-        ]
-        if folder_id is not None:
-            conditions.append(models.Note.folder_id == folder_id)
-
-        stmt = select(exists().where(and_(*conditions)))
+        stmt = select(
+            exists().where(
+                and_(
+                    models.Note.title == title,
+                    models.Note.user_id == user_id,
+                    models.Note.deleted_at.is_(None),
+                    models.Note.folder_id == folder_id,
+                )
+            )
+        )
         result = await self.db.execute(stmt)
         return bool(result.scalar())
 
@@ -118,7 +136,7 @@ class NoteRepository:
         await self.db.refresh(db_note)
         return db_note
 
-    async def update_note(self, note: schemas.UpdateNote, data: Mapping[str, Any]):
+    async def update_note(self, note: models.Note, data: Mapping[str, Any]):
         """
         Update a note.
         :param note: note ORM model.
@@ -128,7 +146,6 @@ class NoteRepository:
         for k, v in data.items():
             setattr(note, k, v)
         await self.db.flush()
-        await self.db.commit()
         await self.db.refresh(note)
         return note
 
@@ -155,4 +172,4 @@ class NoteRepository:
         await self.db.delete(note)
         await self.db.flush()
         await self.db.commit()
-        await self.db.refresh(note)
+        return note

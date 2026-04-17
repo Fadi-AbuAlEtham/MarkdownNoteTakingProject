@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.db import get_db
-from app.api.deps import get_current_user_id
+from app.api.deps import get_render_service
 from app.schemas.render import RenderOut, EtagOut
-from app.services import render as render_service
+from app.services.render import RenderService
 from app.core.utils.http_cache import etag_matches, last_modified_header
 
 router = APIRouter(prefix="/revisions", tags=["Rendered Content"])
@@ -27,13 +25,10 @@ async def render_revision(
     note_id: int,
     revision_id: int,
     request: Request,
-    db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id),
+    render_service: RenderService = Depends(get_render_service),
 ):
     try:
-        data = await render_service.render_revision(
-            db=db, user_id=current_user_id, note_id=note_id, revision_id=revision_id
-        )
+        data = await render_service.render_revision(note_id=note_id, revision_id=revision_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="Revision not found")
 
@@ -90,13 +85,10 @@ async def render_revision(
 async def get_revision_etag(
     note_id: int,
     revision_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id),
+    render_service: RenderService = Depends(get_render_service),
 ):
     try:
-        data = await render_service.get_revision_etag(
-            db=db, user_id=current_user_id, note_id=note_id, revision_id=revision_id
-        )
+        data = await render_service.get_revision_etag(note_id=note_id, revision_id=revision_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="Revision not found")
 
@@ -120,13 +112,10 @@ async def render_revision_by_etag(
     revision_id: int,
     request: Request,
     etag_param: str = Query(..., alias="etag", description="ETag to compare against"),
-    db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id),
+    render_service: RenderService = Depends(get_render_service),
 ):
     try:
-        data = await render_service.render_revision(
-            db=db, user_id=current_user_id, note_id=note_id, revision_id=revision_id
-        )
+        data = await render_service.render_revision(note_id=note_id, revision_id=revision_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="Revision not found")
 

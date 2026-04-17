@@ -1,7 +1,6 @@
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 
-from ..core.utils.format_response import to_response_dict
 from ..repositories.folder import FolderRepository
 from ..repositories.note import NoteRepository
 from ..schemas import folder as schemas_folder, note as schemas_note
@@ -27,7 +26,7 @@ class FolderService:
         )
         if not folder:
             raise HTTPException(status_code=404, detail="Folder not found")
-        return to_response_dict(schemas_folder.FolderResponse, folder)
+        return folder
 
     async def get_all_active_folders(self, skip: int = 0, limit: int = 100):
         """
@@ -39,7 +38,7 @@ class FolderService:
         folders = await self.folder_repo.get_all_active_folders(
             user_id=self.user_id, skip=skip, limit=limit
         )
-        return [to_response_dict(schemas_folder.FolderResponse, f) for f in folders]
+        return folders
 
     async def get_active_notes_in_folder(self, folder_id: int):
         """
@@ -58,8 +57,8 @@ class FolderService:
         )
 
         return {
-            "folder": to_response_dict(schemas_folder.FolderResponse, folder),
-            "notes": [to_response_dict(schemas_note.NoteResponse, n) for n in notes],
+            "folder": folder,
+            "notes": notes,
         }
 
     async def create_folder(self, folder_to_create: schemas_folder.FolderCreate):
@@ -73,15 +72,19 @@ class FolderService:
             parent_id = folder_to_create.parent_id
 
             if parent_id is not None:
-                parent = self.folder_repo.get_folder_by_id_and_user(
+                parent = await self.folder_repo.get_folder_by_id_and_user(
                     user_id=self.user_id, folder_id=parent_id
                 )
                 if not parent:
                     raise ValueError("Parent folder not found or not accessible")
 
-            if await self.folder_repo.folder_exists_by_title_at_level(
+            root_conflict = parent_id is None and await self.folder_repo.folder_exists_by_title_at_root(
+                self.user_id, title
+            )
+            child_conflict = parent_id is not None and await self.folder_repo.folder_exists_by_title_in_parent(
                 self.user_id, parent_id, title
-            ):
+            )
+            if root_conflict or child_conflict:
                 raise ValueError(
                     f"A folder named '{title}' already exists at this level."
                 )
@@ -99,10 +102,11 @@ class FolderService:
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
         except IntegrityError:
-            raise ValueError(
-                f"A folder named '{folder_to_create.title}' already exists at this level."
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"A folder named '{folder_to_create.title}' already exists at this level.",
             )
-        return to_response_dict(schemas_folder.FolderResponse, folder)
+        return folder
 
     async def update_folder(
         self,
@@ -155,7 +159,7 @@ class FolderService:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Tag not found"
             )
-        return to_response_dict(schemas_folder.FolderResponse, folder)
+        return folder
 
     async def soft_delete_folder(self, folder_id: int):
         """
@@ -189,6 +193,4 @@ class FolderService:
                 detail="Folder not found after deletion.",
             )
 
-        return to_response_dict(
-            obj=deleted_folder, res_type=schemas_folder.FolderResponse
-        )
+        return deleted_folder

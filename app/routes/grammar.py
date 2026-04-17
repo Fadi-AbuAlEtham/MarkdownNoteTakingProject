@@ -1,25 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, status
 
-from app.core.db import get_db
-from app.api.deps import get_current_user_id
+from app.api.deps import get_grammar_service
 from app.schemas import grammar as gs
-from app.services import grammar as grammar_service
-from app.services.grammar_provider import GrammarProvider
-from app.core.config import GrammarSettings
-from app.services.providers.languagetool import LanguageToolProvider
-
-_settings = GrammarSettings()
-_provider = LanguageToolProvider(
-    base_url=_settings.BASE_URL,
-    api_key=_settings.API_KEY,
-    auth_header=_settings.AUTH_HEADER,
-    level=_settings.LEVEL,
-)
-
-
-def get_provider() -> GrammarProvider:
-    return _provider
+from app.services.grammar import GrammarService
 
 
 router = APIRouter(prefix="/revisions", tags=["Grammar"])
@@ -34,22 +17,11 @@ async def run_grammar_audit(
     note_id: int,
     revision_id: int,
     body: gs.AuditRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id),
-    provider: GrammarProvider = Depends(get_provider),
+    grammar_service: GrammarService = Depends(get_grammar_service),
 ):
-    try:
-        return await grammar_service.run_audit(
-            db=db,
-            user_id=current_user_id,
-            note_id=note_id,
-            revision_id=revision_id,
-            req=body,
-            provider=provider,
-        )
-    except Exception as e:
-        # Surface provider errors as 502s (bad upstream)
-        raise HTTPException(status_code=502, detail=f"Grammar provider error: {e}")
+    return await grammar_service.run_audit(
+        note_id=note_id, revision_id=revision_id, req=body
+    )
 
 
 @router.post(
@@ -61,13 +33,8 @@ async def apply_fixes(
     note_id: int,
     revision_id: int,
     body: gs.ApplyFixesRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id),
+    grammar_service: GrammarService = Depends(get_grammar_service),
 ):
     return await grammar_service.apply_fixes(
-        db=db,
-        user_id=current_user_id,
-        note_id=note_id,
-        revision_id=revision_id,
-        body=body,
+        note_id=note_id, revision_id=revision_id, body=body
     )

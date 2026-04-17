@@ -110,9 +110,7 @@ class UserRepository:
         :param user: object to be updated.
         :param data:
         """
-        # user = await self.get_by_id(user_id)
-        # if user is None:
-        #     return None
+
         for k, v in data.items():
             setattr(user, k, v)
         await self.db.flush()
@@ -133,7 +131,7 @@ class UserRepository:
         await self.db.refresh(user)
         return user
 
-    async def active_email_exists(self, email: str, *, exclude_user_id: int):
+    async def active_email_exists_excluding_user(self, email: str, *, user_id: int):
         """
         Return True if an ACTIVE user (deleted_at IS NULL) exists with this email.
         Optionally exclude a specific user id.
@@ -142,11 +140,12 @@ class UserRepository:
         stmt = select(
             exists().where(self.model.email == email).where(self.active_filter)
         )
-        if exclude_user_id is not None:
-            stmt = stmt.where(self.model.id != exclude_user_id)
+        stmt = stmt.where(self.model.id != user_id)
         return bool(await self.db.scalar(stmt))
 
-    async def active_username_exists(self, username: str, *, exclude_user_id: int):
+    async def active_username_exists_excluding_user(
+        self, username: str, *, user_id: int
+    ):
         """
         Return True if an ACTIVE user (deleted_at IS NULL) exists with this username.
         Optionally exclude a specific user id.
@@ -155,6 +154,5 @@ class UserRepository:
         stmt = select(
             exists().where(self.model.username == username).where(self.active_filter)
         )
-        if exclude_user_id is not None:
-            stmt = stmt.where(self.model.id != exclude_user_id)
+        stmt = stmt.where(self.model.id != user_id)
         return bool(await self.db.scalar(stmt))

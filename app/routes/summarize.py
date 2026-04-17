@@ -1,43 +1,21 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.db import get_db
-from app.api.deps import get_current_user_id
+from fastapi import APIRouter, Depends, status
+
+from app.api.deps import get_summarize_service
 from app.schemas.summarize import SummarizeRequest, SummarizeOut
-from app.services import summarize as summarize_service
-from app.services.summarize_provider import SummarizeProvider
-from app.services.providers.gemini_summarizer import GeminiSummarizer
+from app.services.summarize import SummarizeService
 from app.schemas import summarize as gs
 
 router = APIRouter(prefix="/summarize", tags=["Summarization"])
 
-_provider: SummarizeProvider = GeminiSummarizer()
 
-
-def get_provider() -> SummarizeProvider:
-    return _provider
-
-
-@router.post("/summarize/notes/{note_id}", response_model=gs.SummarizeOut)
+@router.post("/notes/{note_id}", response_model=gs.SummarizeOut)
 async def summarize_note(
     note_id: int,
     body: gs.SummarizeRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id),
-    provider: SummarizeProvider = Depends(get_provider),
+    summarize_service: SummarizeService = Depends(get_summarize_service),
 ):
-    res = await summarize_service.summarize_note(
-        db=db, user_id=current_user_id, note_id=note_id, req=body, provider=provider
-    )
-
-    return gs.SummarizeOut(
-        summary=res["summary"],
-        model=res["model"],
-        prompt_tokens=res.get("prompt_tokens"),
-        completion_tokens=res.get("completion_tokens"),
-        total_tokens=res.get("total_tokens"),
-        scope="note",
-        scope_id=note_id,
-    )
+    data = await summarize_service.summarize_note(note_id=note_id, req=body)
+    return gs.SummarizeOut(**data)
 
 
 @router.post(
@@ -46,18 +24,7 @@ async def summarize_note(
 async def summarize_folder(
     folder_id: int,
     body: SummarizeRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user_id: int = Depends(get_current_user_id),
-    provider: SummarizeProvider = Depends(get_provider),
+    summarize_service: SummarizeService = Depends(get_summarize_service),
 ):
-    try:
-        data = await summarize_service.summarize_folder(
-            db=db,
-            user_id=current_user_id,
-            folder_id=folder_id,
-            req=body,
-            provider=provider,
-        )
-        return SummarizeOut(**data)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    data = await summarize_service.summarize_folder(folder_id=folder_id, req=body)
+    return SummarizeOut(**data)

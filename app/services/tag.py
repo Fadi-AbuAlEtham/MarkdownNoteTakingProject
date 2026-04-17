@@ -1,6 +1,5 @@
 from fastapi import HTTPException, status
 
-from ..core.utils.format_response import to_response_dict
 from ..models import tag as model_tag
 from ..schemas import tag as schemas_tag
 from ..repositories.tag import TagRepository
@@ -20,7 +19,7 @@ class TagService:
         tag = await self.tag_repo.get_tag_by_id_and_user(self.user_id, tag_id)
         if not tag:
             raise HTTPException(status_code=404, detail="Tag not found")
-        return to_response_dict(obj=tag, res_type=schemas_tag.TagResponse)
+        return tag
 
     async def get_all_active_tags(self, skip: int = 0, limit: int = 100):
         """
@@ -32,7 +31,7 @@ class TagService:
         tags = await self.tag_repo.get_all_active_tags(
             user_id=self.user_id, skip=skip, limit=limit
         )
-        return [to_response_dict(obj=t, res_type=schemas_tag.TagResponse) for t in tags]
+        return tags
 
     async def get_all_tags(self, skip: int = 0, limit: int = 100):
         """
@@ -42,7 +41,7 @@ class TagService:
         :return: All tags.
         """
         tags = await self.tag_repo.get_all_tags(skip=skip, limit=limit)
-        return [to_response_dict(obj=t, res_type=schemas_tag.TagResponse) for t in tags]
+        return tags
 
     # async def get_active_notes_for_tag(self, tag_id: int):
     #     """
@@ -89,7 +88,7 @@ class TagService:
             tag = await self.tag_repo.create_tag(tag=db_tag)
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
-        return to_response_dict(obj=tag, res_type=schemas_tag.TagResponse)
+        return tag
 
     async def update_tag(self, tag_id: int, tag_to_update: schemas_tag.UpdateTag):
         """
@@ -108,8 +107,8 @@ class TagService:
             )
         data = tag_to_update.model_dump(exclude_unset=True)
 
-        if await self.tag_repo.active_title_exists(
-            tag_id=tag_id, user_id=self.user_id, title=tag_to_update.title
+        if "title" in data and await self.tag_repo.active_title_exists_excluding_tag(
+            tag_id=tag_id, user_id=self.user_id, title=data["title"]
         ):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -117,7 +116,7 @@ class TagService:
             )
 
         try:
-            tag = await self.tag_repo.update_tag(tag=tag_to_update, data=data)
+            tag = await self.tag_repo.update_tag(tag=tag, data=data)
         except ValueError as e:
             msg = str(e).lower()
             if "exist" in msg or "duplicate" in msg or "already" in msg:
@@ -128,7 +127,7 @@ class TagService:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Tag not found"
             )
-        return to_response_dict(obj=tag, res_type=schemas_tag.TagResponse)
+        return tag
 
     async def soft_delete_tag(self, tag_id: int):
         """
@@ -150,13 +149,11 @@ class TagService:
                 deleted_tag = await self.tag_repo.soft_delete_by_id(tag)
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-        return to_response_dict(obj=deleted_tag, res_type=schemas_tag.TagResponse)
+        return deleted_tag
 
     async def validate_tags(self, candidate_ids: set[int]):
         valid_ids = await self.tag_repo.validate_tags(
             candidate_ids=candidate_ids, user_id=self.user_id
         )
         ignored_tag_ids = sorted(candidate_ids - valid_ids)
-        if not valid_ids:
-            raise ValueError(f"No valid tags found for IDs: {sorted(candidate_ids)}")
         return ignored_tag_ids, valid_ids

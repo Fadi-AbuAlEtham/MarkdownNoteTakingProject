@@ -5,8 +5,6 @@ import asyncio
 import logging
 from typing import Optional, Dict, Any
 
-from fastapi import HTTPException
-
 try:
     import google.generativeai as genai
 except Exception as e:
@@ -87,17 +85,12 @@ class GeminiSummarizer(SummarizeProvider):
             return
 
         if genai is None:
-            # google-generativeai not installed / import failed
-            raise HTTPException(
-                status_code=500,
-                detail=f"Gemini provider not available: {_import_err!s}",
-            )
+            raise RuntimeError(f"Gemini provider not available: {_import_err!s}")
 
         api_key = _resolve_api_key()
         if not api_key:
-            raise HTTPException(
-                status_code=500,
-                detail="Gemini API key missing. Set GOOGLE_API_KEY or GEMINI_API_KEY in your environment or .env.",
+            raise RuntimeError(
+                "Gemini API key missing. Set GOOGLE_API_KEY or GEMINI_API_KEY in your environment or .env."
             )
 
         genai.configure(api_key=api_key)
@@ -137,9 +130,9 @@ class GeminiSummarizer(SummarizeProvider):
 
         try:
             resp = await asyncio.to_thread(_call)
-        except Exception as e:  # surface provider errors clearly
+        except Exception as e:
             log.exception("Gemini generate_content failed")
-            raise HTTPException(status_code=502, detail=f"Gemini error: {e}")
+            raise RuntimeError(f"Gemini error: {e}") from e
 
         # Extract text + usage metadata (SDK varies across versions)
         summary_text = getattr(resp, "text", None) or ""

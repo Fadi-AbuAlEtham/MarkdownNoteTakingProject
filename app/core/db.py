@@ -13,10 +13,13 @@ import app.models.issue  # noqa: F401
 import app.models.grammar  # noqa: F401
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-engine = create_async_engine(DATABASE_URL, echo=True, future=True, pool_pre_ping=True)
+DB_ECHO = os.getenv("DB_ECHO", "false").lower() == "true"
+engine = create_async_engine(
+    DATABASE_URL, echo=DB_ECHO, future=True, pool_pre_ping=True
+)
 
 
-def get_async_engine(database_url: str, echo: bool = True):
+def get_async_engine(database_url: str, echo: bool = False):
     return create_async_engine(database_url, echo=echo, future=True)
 
 
